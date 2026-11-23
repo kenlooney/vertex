@@ -1,35 +1,110 @@
-# vertex
-A framework to help build assemblers and compilers
+# Vertex
 
-## Plugins
-CPUs, languages and grammars are shared libraries loaded at runtime. Each kind has a base class to subclass, a macro to register it and a loader that loads it:
+**A C++ framework for building extensible assemblers and compilers.**
 
-| Kind | Base class | Header | Register with | Load with |
-|------|------------|--------|---------------|-----------|
-| CPU | `Cpu` | `vertex/plugins/cpuplugin.h` | `VERTEX_REGISTER_CPU` | `CpuLoader` |
-| Language | `Language` | `vertex/plugins/languageplugin.h` | `VERTEX_REGISTER_LANGUAGE` | `LanguageLoader` |
-| Grammar | `Grammar` | `vertex/plugins/grammarplugin.h` | `VERTEX_REGISTER_GRAMMAR` | `GrammarLoader` |
+Vertex is an experimental framework for assembling and compiling through interchangeable CPU, language, and grammar components. Its flagship project, **osasm**, is intended to grow into an assembler with its own assembly language and grammar, starting with a simplified x86 target.
 
-To write one, subclass the base class with a default constructor and register it in one source file:
+The project is under active development. The plugin loading foundation and the first source-to-token path are in place; parsing, intermediate representations, and code generation are future work.
+
+## What exists today
+
+- Runtime-loaded CPU, language, and grammar plugin interfaces.
+- A CPU register file owned by its CPU instance.
+- `Source`, `Token`, and `Span` types, plus a lexer base class.
+- An `OsasmGrammar` that creates an `OsasmLexer` for a source file.
+- A small lexer prototype and a CTest that exercises source loading through tokenization.
+- An `osasm` command-line target that currently demonstrates loading a CPU plugin.
+
+The lexer and grammar are early prototypes, not a complete assembler frontend.
+
+## Project direction
+
+The intended osasm frontend is:
+
+```text
+assembly source -> lexer -> parser -> AST -> IR -> CPU-specific output
+```
+
+CPU plugins will provide target-specific register and instruction information. The grammar and frontend will define the assembly language and translate it into an intermediate representation before handing off target-specific work.
+
+## Build and test
+
+Requirements: CMake 3.24 or newer and a C++17 compiler.
+
+Configure the project:
+
+```sh
+cmake -S . -B build
+```
+
+Build and run the osasm grammar test:
+
+```sh
+cmake --build build --target osasm_grammar_test
+ctest --test-dir build -R osasm_grammar_test --output-on-failure
+```
+
+For a multi-configuration generator such as Visual Studio, specify the configuration:
+
+```powershell
+cmake --build build --config Debug --target osasm_grammar_test
+ctest --test-dir build -C Debug -R osasm_grammar_test --output-on-failure
+```
+
+The test currently uses `examples/test.asm` and checks the initial source-to-token path.
+
+## Runtime plugins
+
+CPU, language, and grammar plugins are shared libraries. Each plugin kind has a base class, a registration macro, and a loader:
+
+| Kind | Base class | Registration macro | Loader |
+| --- | --- | --- | --- |
+| CPU | `Cpu` | `VERTEX_REGISTER_CPU` | `CpuLoader` |
+| Language | `Language` | `VERTEX_REGISTER_LANGUAGE` | `LanguageLoader` |
+| Grammar | `Grammar` | `VERTEX_REGISTER_GRAMMAR` | `GrammarLoader` |
+
+For example, a CPU plugin implements its register file and passes it to the `Cpu` base class:
 
 ```cpp
+#include <memory>
+#include "vertex/common/registers.h"
 #include "vertex/plugins/cpuplugin.h"
+
+class MyRegisterFile : public RegisterFile {
+public:
+    MyRegisterFile() {
+        addRegister(std::make_unique<Register>("a"));
+    }
+};
 
 class MyCpu : public Cpu {
 public:
-    MyCpu() : Cpu("mycpu") {}
+    MyCpu() : Cpu("mycpu", std::make_unique<MyRegisterFile>()) {}
 };
 
 VERTEX_REGISTER_CPU(MyCpu)
 ```
 
-Build it with `vertex_add_plugin(<target> <sources...>)` (see the examples in [targets/cpus](targets/cpus), [targets/languages](targets/languages) and [targets/grammars](targets/grammars)). Load it with the matching loader; `osasm <path-to-plugin>` loads a CPU plugin. A single library may register several kinds.
+Build a plugin with `vertex_add_plugin(<target> <sources...>)`. The example CPU plugin is in [`targets/cpus`](targets/cpus).
 
-Plugins must be built with the same compiler and runtime as vertex. Bump a kind's ABI version (e.g. `VERTEX_CPU_PLUGIN_ABI_VERSION`) whenever its base class changes so that older plugins are rejected.
+The `osasm` executable currently accepts a CPU plugin path:
 
-### Adding a plugin kind
-1. Add the base class under `vertex/common`.
-2. Add `vertex/plugins/<kind>plugin.h` with an ABI version, `VERTEX_DECLARE_PLUGIN_KIND(Base, id, "name", version)` and a `VERTEX_REGISTER_<KIND>` wrapper around `VERTEX_REGISTER_PLUGIN`.
-3. Add `vertex/loaders/<kind>loader.h` with a loader deriving from `PluginLoader<Base>`.
+```sh
+osasm <cpu-plugin>
+```
 
-Use `cpuplugin.h` and `cpuloader.h` as templates.
+Plugins exchange C++ objects with Vertex, so build them with a compatible compiler and runtime. Keep plugin-created objects alive only while their plugin is loaded. Bump a plugin kind's ABI version whenever its base class or plugin interface changes.
+
+## Repository layout
+
+```text
+targets/
+  vertex/       Core types, plugin interfaces, and loaders
+  osasm/        osasm command-line executable
+  osasmcore/    osasm grammar and lexer
+  cpus/         CPU plugins
+  languages/    Language plugins
+  grammars/     Grammar plugins
+tests/          CTest-based tests
+examples/       Sample assembly input
+```

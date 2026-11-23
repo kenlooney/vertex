@@ -1,0 +1,1 @@
+vertex_add_plugin(example_language example_language.cpp)

@@ -1,0 +1,9 @@
+mov ax,0b0101
+mov bx,0101b
+mov cx,0xA5
+mov dx,0A5h
+mov si,0o17
+mov di,17o
+mov bp,0d42
+mov sp,42d
+mov ax,42

@@ -1,0 +1,1 @@
+vertex_add_plugin(x86_cpu x86_cpu.cpp)

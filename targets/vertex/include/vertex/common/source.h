@@ -4,5 +4,5 @@
 struct Source {
     std::string path;
     std::string text;
-    static void load(const std::string& path, Source& result);
+    static bool load(const std::string& path, Source& result);
 };

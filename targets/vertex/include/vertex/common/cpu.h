@@ -9,6 +9,7 @@ class Cpu {
     virtual ~Cpu() = default;
     std::string name() const { return name_; }
     RegisterFile* register_file() const { return register_file_.get(); }
+    virtual void reset() = 0;
     
     private:
     std::string name_;

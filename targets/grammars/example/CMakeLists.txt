@@ -1,1 +1,0 @@
-vertex_add_plugin(example_grammar example_grammar.cpp)

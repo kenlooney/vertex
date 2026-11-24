@@ -52,6 +52,92 @@ int main() {
         return 1;
     }
 
+    const std::vector<Token> grouped = {
+        token("punctuation", "("),
+        token("integer", "2"),
+        token("punctuation", "+"),
+        token("integer", "3"),
+        token("punctuation", ")"),
+        token("punctuation", "*"),
+        token("integer", "4"),
+    };
+    if(!parse_expression(grouped, value, error) || value != 20) {
+        std::cerr << "Failed to parse grouped expression: " << error << '\n';
+        return 1;
+    }
+
+    const std::vector<Token> nested_group = {
+        token("punctuation", "("),
+        token("integer", "2"),
+        token("punctuation", "*"),
+        token("punctuation", "("),
+        token("integer", "3"),
+        token("punctuation", "+"),
+        token("integer", "4"),
+        token("punctuation", ")"),
+        token("punctuation", ")"),
+    };
+    if(!parse_expression(nested_group, value, error) || value != 14) {
+        std::cerr << "Failed to parse nested grouped expression: " << error << '\n';
+        return 1;
+    }
+
+    const std::vector<Token> unclosed_group = {
+        token("punctuation", "("),
+        token("integer", "2"),
+        token("punctuation", "+"),
+        token("integer", "3"),
+    };
+    if(parse_expression(unclosed_group, value, error) || error != "Expected ')'") {
+        std::cerr << "Failed to reject an unclosed group\n";
+        return 1;
+    }
+
+    const std::vector<Token> arithmetic = {
+        token("punctuation", "("),
+        token("integer", "3"),
+        token("punctuation", "+"),
+        token("punctuation", "("),
+        token("integer", "2"),
+        token("punctuation", "*"),
+        token("punctuation", "("),
+        token("integer", "20"),
+        token("punctuation", "-"),
+        token("integer", "5"),
+        token("punctuation", ")"),
+        token("punctuation", "+"),
+        token("integer", "4"),
+        token("punctuation", ")"),
+        token("punctuation", ")"),
+    };
+    if(!parse_expression(arithmetic, value, error) || value != 37) {
+        std::cerr << "Failed to parse arithmetic expression: " << error << '\n';
+        return 1;
+    }
+
+    const std::vector<Token> division = {
+        token("integer", "20"),
+        token("punctuation", "/"),
+        token("integer", "5"),
+        token("punctuation", "%"),
+        token("integer", "3"),
+    };
+    if(!parse_expression(division, value, error) || value != 1) {
+        std::cerr << "Failed to parse division/modulo expression: " << error << '\n';
+        return 1;
+    }
+
+    const std::vector<Token> division_by_zero = {
+        token("integer", "10"),
+        token("punctuation", "/"),
+        token("integer", "0"),
+    };
+    if(parse_expression(division_by_zero, value, error)
+        || error != "Division by zero in expression") {
+        std::cerr << "Failed to reject division by zero\n";
+        return 1;
+    }
+
     const std::vector<Token> overflow = {
         token("integer", "18446744073709551615"),
         token("punctuation", "+"),

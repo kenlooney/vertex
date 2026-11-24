@@ -19,58 +19,111 @@ bool OsasmParser::number(std::uint64_t& value, std::string& error)
     return true;
 }
 
+bool OsasmParser::primary(std::uint64_t& value, std::string& error)
+{
+    if(!at_end() && peek().kind == "punctuation" && peek().text == "(") {
+        advance();
+
+        std::uint64_t grouped;
+        if(!sum(grouped, error)) {
+            return false;
+        }
+        if(at_end() || peek().kind != "punctuation" || peek().text != ")") {
+            error = "Expected ')'";
+            return false;
+        }
+
+        advance();
+        value = grouped;
+        return true;
+    }
+
+    return number(value, error);
+}
+
 bool OsasmParser::sum(std::uint64_t& value, std::string& error)
 {
     if(!product(value, error)) {
         return false;
     }
 
-    while(!at_end() && peek().kind == "punctuation" && peek().text == "+") {
+    while(!at_end() && peek().kind == "punctuation" && (peek().text == "+" || peek().text == "-")) {
+        const std::string op = peek().text;
         advance();
         std::uint64_t right;
         if(!product(right, error)) {
             return false;
         }
-        if(value > std::numeric_limits<std::uint64_t>::max() - right) {
-            error = "Integer overflow in expression";
-            return false;
+              
+        if(op == "+") {
+            if(value > std::numeric_limits<std::uint64_t>::max() - right) {
+                error = "Integer overflow in expression";
+                return false;
+            }
+            value += right;
+        } 
+        else if(op == "-") {
+            if(value < right) {
+                error = "Integer underflow in expression";
+                return false;
+            }
+            value -= right;
         }
-        value += right;
     }
     return true;
 }
 
 bool OsasmParser::product(std::uint64_t& value, std::string& error)
 {
-    if(!number(value, error)) {
+    if(!primary(value, error)) {
         return false;
     }
 
-    while(!at_end() && peek().kind == "punctuation" && peek().text == "*") {
+    while(!at_end() && peek().kind == "punctuation" && (peek().text == "*" || peek().text == "/" || peek().text == "%")) {
+        const std::string op = peek().text;
         advance();
         std::uint64_t right;
-        if(!number(right, error)) {
+        if(!primary(right, error)) {
             return false;
         }
-        if(right != 0
-            && value > std::numeric_limits<std::uint64_t>::max() / right) {
-            error = "Integer overflow in expression";
-            return false;
+        if(op == "*") {
+            if(right != 0
+                && value > std::numeric_limits<std::uint64_t>::max() / right) {
+                error = "Integer overflow in expression";
+                return false;
+            }
+            value *= right;
+        } 
+        else if(op == "/") {
+            if(right == 0) {
+                error = "Division by zero in expression";
+                return false;
+            }
+            value /= right;
         }
-        value *= right;
+        else if(op == "%") {
+            if(right == 0) {
+                error = "Modulo by zero in expression";
+                return false;
+            }
+            value %= right;
+        }
     }
     return true;
 }
 
 bool OsasmParser::run(std::uint64_t& value, std::string& error)
 {
-    if(!sum(value, error)) {
+    std::uint64_t parsed_value;
+    if(!sum(parsed_value, error)) {
         return false;
     }
     if(!at_end()) {
         error = "Unexpected token: " + peek().text;
         return false;
     }
+
+    value = parsed_value;
     return true;
 }
 

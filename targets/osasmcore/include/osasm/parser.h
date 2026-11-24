@@ -16,6 +16,7 @@ public:
     virtual ~OsasmParser() = default;
    
     bool number(std::uint64_t& value, std::string& error);
+    bool primary(std::uint64_t& value, std::string& error);
     bool sum(std::uint64_t& value, std::string& error);
     bool product(std::uint64_t& value, std::string& error);
     bool run(std::uint64_t& value, std::string& error);

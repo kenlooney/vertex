@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(kasm VERSION 0.1.0 LANGUAGES C CXX)
+project(kasm VERSION 0.2.0 LANGUAGES C CXX)
 
 
 set(CMAKE_C_STANDARD 11)
@@ -16,7 +16,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 include(CTest)
 
 # Expose the project version to CI (read by .github/workflows/release.yml).
-file(WRITE ${CMAKE_BINARY_DIR}/kasm-version.txt "${PROJECT_VERSION}")
+file(WRITE ${CMAKE_BINARY_DIR}/vertex-version.txt "${PROJECT_VERSION}")
 
 add_subdirectory(targets)
 
@@ -25,11 +25,14 @@ if(BUILD_TESTING)
 endif()
 
 # Keep the executable and its shared libraries together in portable archives.
-if(UNIX AND NOT APPLE)
+if(APPLE)
+  set_target_properties(osasm PROPERTIES INSTALL_RPATH "@loader_path")
+  set_target_properties(vertex PROPERTIES INSTALL_RPATH "@loader_path")
+  set_target_properties(utils PROPERTIES INSTALL_RPATH "@loader_path")
+elseif(UNIX)
   set_target_properties(osasm PROPERTIES INSTALL_RPATH "$ORIGIN")
   set_target_properties(vertex PROPERTIES INSTALL_RPATH "$ORIGIN")
   set_target_properties(utils PROPERTIES INSTALL_RPATH "$ORIGIN")
- 
 endif()
 install(TARGETS osasm vertex utils
   RUNTIME DESTINATION .

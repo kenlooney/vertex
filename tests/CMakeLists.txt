@@ -26,3 +26,7 @@ add_test(NAME osasm_comments_test COMMAND osasm_comments_test "${EXAMPLES_DIR}/c
 add_executable(osasm_integer_test osasm_integer_test.cpp)
 target_link_libraries(osasm_integer_test osasmcore utils)
 add_test(NAME osasm_integer_test COMMAND osasm_integer_test)
+
+add_executable(osasm_parser_test osasm_parser_test.cpp)
+target_link_libraries(osasm_parser_test osasmcore)
+add_test(NAME osasm_parser_test COMMAND osasm_parser_test)

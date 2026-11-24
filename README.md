@@ -63,13 +63,13 @@ The release workflow runs on GitHub's standard Ubuntu, Windows, and macOS runner
 It produces packages for:
 
 - Windows x86_64 and ARM64
-- Linux x86_64, ARM64, and RISC-V 64
+- Linux x86_64 and ARM64
 - macOS x86_64 and ARM64
 
-ARM and RISC-V jobs are cross-compiled; no paid larger or architecture-specific
-runners are used. Dev snapshots for the same CMake version are replaced with the
-latest push. Stable versions are immutable, so bump the CMake project version before
-merging a new stable release.
+ARM jobs are cross-compiled; no paid larger or architecture-specific runners are
+used. Dev snapshots for the same CMake version are replaced with the latest push.
+Stable versions are immutable, so bump the CMake project version before merging a
+new stable release.
 
 Retention keeps the newest four dev prereleases and four stable releases. Their
 eight release tags are retained along with up to twelve older

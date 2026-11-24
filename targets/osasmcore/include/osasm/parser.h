@@ -1,0 +1,36 @@
+#pragma once
+
+#include "vertex/common/parser.h"
+#include "vertex/common/token.h"
+#include "osasm/ast.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
+
+bool parse_expression(const std::vector<Token>& tokens, Expression& expression, std::string& error);
+bool evaluate(const Expression& tree, std::size_t index, std::uint64_t& value, std::string& error);
+class OsasmParser : public Parser {
+public:
+    explicit OsasmParser(std::vector<Token> tokens)
+        : Parser(std::move(tokens)), expression_(owned_expression_) {}
+
+    explicit OsasmParser(std::vector<Token> tokens, Expression& expression)
+        : Parser(std::move(tokens)), expression_(expression) {}
+    virtual ~OsasmParser() = default;
+   
+    bool number(std::size_t& node, std::string& error);
+    bool primary(std::size_t& node, std::string& error);
+    bool sum(std::size_t& node, std::string& error);
+    bool product(std::size_t& node, std::string& error);
+    bool run(std::string& error);
+    const Expression& expression() const { return expression_; }
+
+private:
+    std::size_t add_node(Node node);
+
+    Expression owned_expression_;
+    Expression& expression_;
+};

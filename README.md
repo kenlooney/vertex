@@ -4,18 +4,28 @@
 
 Vertex is an experimental framework for assembling and compiling through interchangeable CPU, language, and grammar components. Its flagship project, **osasm**, is intended to grow into an assembler with its own assembly language and grammar, starting with a simplified x86 target.
 
-The project is under active development. The plugin loading foundation and the first source-to-token path are in place; parsing, intermediate representations, and code generation are future work.
+The project is under active development. The plugin loading foundation, OSASM lexer,
+expression parser, and expression AST are in place. Statement parsing, intermediate
+representations, and code generation are the next frontend milestones.
 
 ## What exists today
 
 - Runtime-loaded CPU, language, and grammar plugin interfaces.
 - A CPU register file owned by its CPU instance.
-- `Source`, `Token`, and `Span` types, plus a lexer base class.
-- An `OsasmGrammar` that creates an `OsasmLexer` for a source file.
-- A small lexer prototype and a CTest that exercises source loading through tokenization.
+- `Source`, `Token`, and `Span` types, plus shared lexer and parser foundations.
+- An `OsasmGrammar` that creates an `OsasmLexer` and `OsasmParser`.
+- Lexing for labels, identifiers, integers, punctuation, and traditional/C-style
+  comments.
+- Modern-prefix and legacy-suffix integer literals in binary, octal, decimal, and
+  hexadecimal.
+- Expression parsing for `+`, `-`, `*`, `/`, `%`, operator precedence, and nested
+  parentheses.
+- An index-based expression AST arena plus an overflow-checked tree evaluator.
+- Shared numeric conversion utilities and focused CTest coverage for lexer, parser,
+  AST, comments, and integer handling.
 - An `osasm` command-line target that currently demonstrates loading a CPU plugin.
 
-The lexer and grammar are early prototypes, not a complete assembler frontend.
+The OSASM frontend is still experimental and is not yet a complete assembler.
 
 ## Project direction
 
@@ -27,6 +37,10 @@ assembly source -> lexer -> parser -> AST -> IR -> CPU-specific output
 
 CPU plugins will provide target-specific register and instruction information. The grammar and frontend will define the assembly language and translate it into an intermediate representation before handing off target-specific work.
 
+The next parser milestone is separating source lines into statements and attaching
+expression trees to those statements. Instruction parsing and IR lowering will
+follow.
+
 ## Build and test
 
 Requirements: CMake 3.24 or newer and a C++17 compiler.
@@ -37,21 +51,22 @@ Configure the project:
 cmake -S . -B build
 ```
 
-Build and run the osasm grammar test:
+Build and run the OSASM expression parser/AST test:
 
 ```sh
-cmake --build build --target osasm_grammar_test
-ctest --test-dir build -R osasm_grammar_test --output-on-failure
+cmake --build build --target osasm_parser_test
+ctest --test-dir build -R osasm_parser_test --output-on-failure
 ```
 
 For a multi-configuration generator such as Visual Studio, specify the configuration:
 
 ```powershell
-cmake --build build --config Debug --target osasm_grammar_test
-ctest --test-dir build -C Debug -R osasm_grammar_test --output-on-failure
+cmake --build build --config Debug --target osasm_parser_test
+ctest --test-dir build -C Debug -R osasm_parser_test --output-on-failure
 ```
 
-The test currently uses `examples/test.asm` and checks the initial source-to-token path.
+The parser test checks AST construction and evaluation, operator precedence, nested
+parentheses, mixed numeric bases, and arithmetic error cases.
 
 ## Automated releases
 
@@ -122,12 +137,12 @@ Plugins exchange C++ objects with Vertex, so build them with a compatible compil
 
 ```text
 targets/
-  vertex/       Core types, plugin interfaces, and loaders
+  vertex/       Core types, parser foundations, plugin interfaces, and loaders
+  utils/        Shared numeric conversion and utility code
   osasm/        osasm command-line executable
-  osasmcore/    osasm grammar and lexer
+  osasmcore/    osasm lexer, parser, and expression AST
   cpus/         CPU plugins
   languages/    Language plugins
-  grammars/     Grammar plugins
 tests/          CTest-based tests
 examples/       Sample assembly input
 ```

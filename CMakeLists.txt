@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(kasm VERSION 0.1.0 LANGUAGES C CXX)
+project(kasm VERSION 0.2.0 LANGUAGES C CXX)
 
 
 set(CMAKE_C_STANDARD 11)
@@ -16,7 +16,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 include(CTest)
 
 # Expose the project version to CI (read by .github/workflows/release.yml).
-file(WRITE ${CMAKE_BINARY_DIR}/kasm-version.txt "${PROJECT_VERSION}")
+file(WRITE ${CMAKE_BINARY_DIR}/vertex-version.txt "${PROJECT_VERSION}")
 
 add_subdirectory(targets)
 

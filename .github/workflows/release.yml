@@ -1,0 +1,300 @@
+name: Build releases
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vertex-releases
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      channel: ${{ steps.metadata.outputs.channel }}
+      tag: ${{ steps.metadata.outputs.tag }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read CMake version
+        id: metadata
+        shell: bash
+        run: |
+          cmake -S . -B build-release-metadata \
+            -DBUILD_TESTING=OFF \
+            -DCMAKE_BUILD_TYPE=Release
+
+          version="$(tr -d '[:space:]' < build-release-metadata/kasm-version.txt)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid CMake project version: $version"
+            exit 1
+          fi
+
+          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            channel="stable"
+            tag="vertex-v${version}"
+          else
+            channel="dev"
+            tag="vertex-dev-v${version}"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x86_64
+            runner: windows-latest
+            cmake_args: -A x64
+            archive: zip
+            packages: ""
+            run_tests: "true"
+          - platform: windows-arm64
+            runner: windows-latest
+            cmake_args: -A ARM64
+            archive: zip
+            packages: ""
+            run_tests: "false"
+          - platform: linux-x86_64
+            runner: ubuntu-latest
+            cmake_args: ""
+            archive: tar.gz
+            packages: ""
+            run_tests: "true"
+          - platform: linux-arm64
+            runner: ubuntu-latest
+            cmake_args: -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++
+            archive: tar.gz
+            packages: g++-aarch64-linux-gnu
+            run_tests: "false"
+          - platform: linux-riscv64
+            runner: ubuntu-latest
+            cmake_args: -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=riscv64 -DCMAKE_C_COMPILER=riscv64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=riscv64-linux-gnu-g++
+            archive: tar.gz
+            packages: g++-riscv64-linux-gnu
+            run_tests: "false"
+          - platform: macos-x86_64
+            runner: macos-latest
+            cmake_args: -DCMAKE_OSX_ARCHITECTURES=x86_64
+            archive: tar.gz
+            packages: ""
+            run_tests: "false"
+          - platform: macos-arm64
+            runner: macos-latest
+            cmake_args: -DCMAKE_OSX_ARCHITECTURES=arm64
+            archive: tar.gz
+            packages: ""
+            run_tests: "false"
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install cross compiler
+        if: matrix.packages != ''
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ${{ matrix.packages }}
+
+      - name: Configure
+        shell: bash
+        env:
+          PACKAGE_NAME: ${{ needs.metadata.outputs.tag }}-${{ matrix.platform }}
+        run: |
+          cmake -S . -B build-release \
+            ${{ matrix.cmake_args }} \
+            -DBUILD_TESTING=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PWD/package/$PACKAGE_NAME"
+
+      - name: Build
+        shell: bash
+        run: cmake --build build-release --config Release
+
+      - name: Install
+        shell: bash
+        run: cmake --install build-release --config Release
+
+      - name: Run native tests
+        if: matrix.run_tests == 'true'
+        shell: bash
+        run: |
+          cmake -S . -B build-release-tests -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-release-tests --config Release
+          ctest --test-dir build-release-tests -C Release --output-on-failure \
+            -R "^(pluginloader_test|osasm_grammar_test|osasm_tokens_test|osasm_numbers_test|osasm_comments_test|osasm_integer_test)$"
+
+      - name: Package
+        shell: bash
+        env:
+          PACKAGE_NAME: ${{ needs.metadata.outputs.tag }}-${{ matrix.platform }}
+        run: |
+          mkdir -p artifacts
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            cmake -E chdir package cmake -E tar cf \
+              "../artifacts/${PACKAGE_NAME}.zip" \
+              --format=zip \
+              "$PACKAGE_NAME"
+          else
+            cmake -E chdir package cmake -E tar czf \
+              "../artifacts/${PACKAGE_NAME}.tar.gz" \
+              --format=gnutar \
+              "$PACKAGE_NAME"
+          fi
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.tag }}-${{ matrix.platform }}
+          path: artifacts/*
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    needs:
+      - metadata
+      - build
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: ${{ needs.metadata.outputs.channel }}
+      TAG: ${{ needs.metadata.outputs.tag }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ needs.metadata.outputs.tag }}-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+
+      - name: Create or update release
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [[ "$CHANNEL" == "stable" ]]; then
+            if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+              echo "::error::Stable tag $TAG already exists. Bump project(... VERSION ...) before merging another stable release."
+              exit 1
+            fi
+          elif gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes
+          fi
+
+          git tag -f "$TAG" "$GITHUB_SHA"
+          git push --force origin "refs/tags/$TAG:refs/tags/$TAG"
+
+          notes="Automated ${CHANNEL} release for CMake version ${{ needs.metadata.outputs.version }} from ${GITHUB_SHA}."
+          release_args=(
+            "$TAG"
+            dist/*
+            --title "$TAG"
+            --notes "$notes"
+            --verify-tag
+          )
+          if [[ "$CHANNEL" == "dev" ]]; then
+            release_args+=(--prerelease)
+          fi
+
+          gh release create "${release_args[@]}"
+
+      - name: Keep four releases per channel
+        shell: bash
+        run: |
+          prune_channel() {
+            local prefix="$1"
+            local tag
+
+            while IFS= read -r tag; do
+              [[ -n "$tag" ]] || continue
+              gh release delete "$tag" --yes
+            done < <(
+              gh release list --limit 200 --json tagName,createdAt --jq \
+                --arg prefix "$prefix" \
+                '[.[] | select(.tagName | startswith($prefix))]
+                 | sort_by(.createdAt) | reverse | .[4:][].tagName'
+            )
+          }
+
+          prune_channel "vertex-dev-v"
+          prune_channel "vertex-v"
+
+      - name: Keep twenty managed tags
+        shell: bash
+        run: |
+          git fetch --force --tags origin
+
+          mapfile -t protected_tags < <(
+            gh release list --limit 200 --json tagName --jq \
+              '.[] | .tagName | select(
+                startswith("vertex-dev-v") or startswith("vertex-v")
+              )'
+          )
+          mapfile -t managed_tags < <(
+            git for-each-ref \
+              --sort=-creatordate \
+              --format='%(refname:short)' \
+              'refs/tags/vertex-dev-v*' 'refs/tags/vertex-v*'
+          )
+
+          is_protected() {
+            local candidate="$1"
+            local protected
+            for protected in "${protected_tags[@]}"; do
+              [[ "$candidate" == "$protected" ]] && return 0
+            done
+            return 1
+          }
+
+          slots=$((20 - ${#protected_tags[@]}))
+          if ((slots < 0)); then
+            echo "::error::More than twenty managed tags are attached to releases."
+            exit 1
+          fi
+
+          delete_tags=()
+          for tag in "${managed_tags[@]}"; do
+            if is_protected "$tag"; then
+              continue
+            fi
+
+            if ((slots > 0)); then
+              ((slots--))
+            else
+              delete_tags+=("$tag")
+            fi
+          done
+
+          if ((${#delete_tags[@]} > 0)); then
+            git push origin --delete "${delete_tags[@]}"
+          fi

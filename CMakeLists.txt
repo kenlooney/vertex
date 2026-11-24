@@ -25,11 +25,14 @@ if(BUILD_TESTING)
 endif()
 
 # Keep the executable and its shared libraries together in portable archives.
-if(UNIX AND NOT APPLE)
+if(APPLE)
+  set_target_properties(osasm PROPERTIES INSTALL_RPATH "@loader_path")
+  set_target_properties(vertex PROPERTIES INSTALL_RPATH "@loader_path")
+  set_target_properties(utils PROPERTIES INSTALL_RPATH "@loader_path")
+elseif(UNIX)
   set_target_properties(osasm PROPERTIES INSTALL_RPATH "$ORIGIN")
   set_target_properties(vertex PROPERTIES INSTALL_RPATH "$ORIGIN")
   set_target_properties(utils PROPERTIES INSTALL_RPATH "$ORIGIN")
- 
 endif()
 install(TARGETS osasm vertex utils
   RUNTIME DESTINATION .

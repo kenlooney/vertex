@@ -53,6 +53,29 @@ ctest --test-dir build -C Debug -R osasm_grammar_test --output-on-failure
 
 The test currently uses `examples/test.asm` and checks the initial source-to-token path.
 
+## Automated releases
+
+Pushes to `dev` publish prereleases named `vertex-dev-v<version>`. Pushes or merges to
+`main` publish stable releases named `vertex-v<version>`. Both names use the version
+declared by `project(... VERSION ...)` in [`CMakeLists.txt`](CMakeLists.txt).
+
+The release workflow runs on GitHub's standard Ubuntu, Windows, and macOS runners.
+It produces packages for:
+
+- Windows x86_64 and ARM64
+- Linux x86_64, ARM64, and RISC-V 64
+- macOS x86_64 and ARM64
+
+ARM and RISC-V jobs are cross-compiled; no paid larger or architecture-specific
+runners are used. Dev snapshots for the same CMake version are replaced with the
+latest push. Stable versions are immutable, so bump the CMake project version before
+merging a new stable release.
+
+Retention keeps the newest four dev prereleases and four stable releases. Their
+eight release tags are retained along with up to twelve older
+`vertex-dev-v*`/`vertex-v*` tags, for a maximum of twenty managed tags. Unrelated
+repository tags are not modified.
+
 ## Runtime plugins
 
 CPU, language, and grammar plugins are shared libraries. Each plugin kind has a base class, a registration macro, and a loader:

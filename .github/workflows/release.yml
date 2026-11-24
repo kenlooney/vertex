@@ -199,8 +199,8 @@ jobs:
 
           if [[ "$CHANNEL" == "stable" ]]; then
             if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
-              echo "::error::Stable tag $TAG already exists. Bump project(... VERSION ...) before merging another stable release."
-              exit 1
+              echo "::notice::Stable tag $TAG already exists; skipping release creation. Bump project(... VERSION ...) for the next stable release."
+              exit 0
             fi
           elif gh release view "$TAG" >/dev/null 2>&1; then
             gh release delete "$TAG" --yes
@@ -212,23 +212,24 @@ jobs:
           notes="Automated ${CHANNEL} release for CMake version ${{ needs.metadata.outputs.version }} from ${GITHUB_SHA}."
           if [[ "$CHANNEL" == "dev" ]]; then
             previous_tag="$(
-              gh release list --limit 200 --json tagName,isPrerelease,createdAt --jq \
-                --arg tag "$TAG" \
-                '[.[] | select(.isPrerelease and .tagName != $tag)]
-                 | sort_by(.createdAt) | reverse | .[0].tagName // ""'
+              gh release list --limit 200 --json tagName,isPrerelease,createdAt \
+                | jq -r --arg tag "$TAG" \
+                    '[.[] | select(.isPrerelease and .tagName != $tag)]
+                     | sort_by(.createdAt) | reverse | .[0].tagName // ""'
             )"
           else
             previous_tag="$(
-              gh release list --limit 200 --json tagName,isPrerelease,createdAt --jq \
-                '[.[] | select(.isPrerelease | not)]
-                 | sort_by(.createdAt) | reverse | .[0].tagName // ""'
+              gh release list --limit 200 --json tagName,isPrerelease,createdAt \
+                | jq -r \
+                    '[.[] | select(.isPrerelease | not)]
+                     | sort_by(.createdAt) | reverse | .[0].tagName // ""'
             )"
             if [[ -z "$previous_tag" ]]; then
               previous_tag="$(
-                gh release list --limit 200 --json tagName,isPrerelease,createdAt --jq \
-                  --arg current_dev_tag "vertex-dev-v${VERSION}" \
-                  '[.[] | select(.isPrerelease and .tagName != $current_dev_tag)]
-                   | sort_by(.createdAt) | reverse | .[0].tagName // ""'
+                gh release list --limit 200 --json tagName,isPrerelease,createdAt \
+                  | jq -r --arg current_dev_tag "vertex-dev-v${VERSION}" \
+                      '[.[] | select(.isPrerelease and .tagName != $current_dev_tag)]
+                       | sort_by(.createdAt) | reverse | .[0].tagName // ""'
               )"
             fi
           fi
@@ -261,10 +262,10 @@ jobs:
               [[ -n "$tag" ]] || continue
               gh release delete "$tag" --yes
             done < <(
-              gh release list --limit 200 --json tagName,createdAt --jq \
-                --arg prefix "$prefix" \
-                '[.[] | select(.tagName | startswith($prefix))]
-                 | sort_by(.createdAt) | reverse | .[4:][].tagName'
+              gh release list --limit 200 --json tagName,createdAt \
+                | jq -r --arg prefix "$prefix" \
+                    '[.[] | select(.tagName | startswith($prefix))]
+                     | sort_by(.createdAt) | reverse | .[4:][].tagName'
             )
           }
 

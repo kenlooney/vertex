@@ -26,10 +26,12 @@ endif()
 
 # Keep the executable and its shared libraries together in portable archives.
 if(UNIX AND NOT APPLE)
+  set_target_properties(osasm PROPERTIES INSTALL_RPATH "$ORIGIN")
   set_target_properties(vertex PROPERTIES INSTALL_RPATH "$ORIGIN")
+  set_target_properties(utils PROPERTIES INSTALL_RPATH "$ORIGIN")
  
 endif()
-install(TARGETS vertex
+install(TARGETS osasm vertex utils
   RUNTIME DESTINATION .
   LIBRARY DESTINATION .)
 install(FILES README.md LICENSE DESTINATION .)

@@ -15,6 +15,16 @@ Token token(std::string kind, std::string text) {
     return result;
 }
 
+bool parse_and_evaluate(const std::vector<Token>& tokens,
+                        std::uint64_t& value,
+                        std::string& error) {
+    Expression expression;
+    if(!parse_expression(tokens, expression, error)) {
+        return false;
+    }
+    return evaluate(expression, expression.root, value, error);
+}
+
 int main() {
     std::uint64_t value = 0;
     std::string error;
@@ -24,7 +34,7 @@ int main() {
         token("integer", "0101b"),
     };
 
-    if(!parse_expression(expression, value, error) || value != 15) {
+    if(!parse_and_evaluate(expression, value, error) || value != 15) {
         std::cerr << "Failed to parse a valid expression: " << error << '\n';
         return 1;
     }
@@ -37,8 +47,18 @@ int main() {
         token("punctuation", "*"),
         token("integer", "4"),
     };
-    if(!parse_expression(precedence, value, error) || value != 14) {
+    Expression precedence_tree;
+    if(!parse_expression(precedence, precedence_tree, error)
+        || !evaluate(precedence_tree, precedence_tree.root, value, error)
+        || value != 14) {
         std::cerr << "Failed to honor operator precedence: " << error << '\n';
+        return 1;
+    }
+    const Node& precedence_root = precedence_tree.nodes[precedence_tree.root];
+    const Node& precedence_right = precedence_tree.nodes[precedence_root.right];
+    if(precedence_root.kind != "+"
+        || precedence_right.kind != "*") {
+        std::cerr << "Parser did not preserve operator precedence in the AST\n";
         return 1;
     }
 
@@ -47,7 +67,7 @@ int main() {
         token("punctuation", "*"),
         token("integer", "18446744073709551615"),
     };
-    if(!parse_expression(zero_product, value, error) || value != 0) {
+    if(!parse_and_evaluate(zero_product, value, error) || value != 0) {
         std::cerr << "Failed to parse multiplication by zero: " << error << '\n';
         return 1;
     }
@@ -61,7 +81,7 @@ int main() {
         token("punctuation", "*"),
         token("integer", "4"),
     };
-    if(!parse_expression(grouped, value, error) || value != 20) {
+    if(!parse_and_evaluate(grouped, value, error) || value != 20) {
         std::cerr << "Failed to parse grouped expression: " << error << '\n';
         return 1;
     }
@@ -77,7 +97,7 @@ int main() {
         token("punctuation", ")"),
         token("punctuation", ")"),
     };
-    if(!parse_expression(nested_group, value, error) || value != 14) {
+    if(!parse_and_evaluate(nested_group, value, error) || value != 14) {
         std::cerr << "Failed to parse nested grouped expression: " << error << '\n';
         return 1;
     }
@@ -88,7 +108,7 @@ int main() {
         token("punctuation", "+"),
         token("integer", "3"),
     };
-    if(parse_expression(unclosed_group, value, error) || error != "Expected ')'") {
+    if(parse_and_evaluate(unclosed_group, value, error) || error != "Expected ')'") {
         std::cerr << "Failed to reject an unclosed group\n";
         return 1;
     }
@@ -110,7 +130,7 @@ int main() {
         token("punctuation", ")"),
         token("punctuation", ")"),
     };
-    if(!parse_expression(arithmetic, value, error) || value != 37) {
+    if(!parse_and_evaluate(arithmetic, value, error) || value != 37) {
         std::cerr << "Failed to parse arithmetic expression: " << error << '\n';
         return 1;
     }
@@ -122,7 +142,7 @@ int main() {
         token("punctuation", "%"),
         token("integer", "3"),
     };
-    if(!parse_expression(division, value, error) || value != 1) {
+    if(!parse_and_evaluate(division, value, error) || value != 1) {
         std::cerr << "Failed to parse division/modulo expression: " << error << '\n';
         return 1;
     }
@@ -132,7 +152,7 @@ int main() {
         token("punctuation", "/"),
         token("integer", "0"),
     };
-    if(parse_expression(division_by_zero, value, error)
+    if(parse_and_evaluate(division_by_zero, value, error)
         || error != "Division by zero in expression") {
         std::cerr << "Failed to reject division by zero\n";
         return 1;
@@ -144,7 +164,7 @@ int main() {
         token("integer", "1"),
     };
     std::uint64_t overflow_value = 0;
-    if(parse_expression(overflow, overflow_value, error)) {
+    if(parse_and_evaluate(overflow, overflow_value, error)) {
         std::cerr << "Unexpectedly accepted overflow\n";
         return 1;
     }

@@ -33,7 +33,7 @@ jobs:
             -DBUILD_TESTING=OFF \
             -DCMAKE_BUILD_TYPE=Release
 
-          version="$(tr -d '[:space:]' < build-release-metadata/kasm-version.txt)"
+          version="$(tr -d '[:space:]' < build-release-metadata/vertex-version.txt)"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Invalid CMake project version: $version"
             exit 1

@@ -6,6 +6,7 @@ function(vertex_add_plugin target)
   set_target_properties(${target} PROPERTIES PREFIX "")
 endfunction()
 
+add_subdirectory(utils)
 add_subdirectory(vertex)
 add_subdirectory(osasm)
 add_subdirectory(osasmcore)

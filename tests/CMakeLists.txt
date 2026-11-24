@@ -22,3 +22,7 @@ add_test(NAME osasm_numbers_test COMMAND osasm_numbers_test "${EXAMPLES_DIR}/num
 add_executable(osasm_comments_test osasm_grammar_test.cpp)
 target_link_libraries(osasm_comments_test osasmcore)
 add_test(NAME osasm_comments_test COMMAND osasm_comments_test "${EXAMPLES_DIR}/comments.asm")
+
+add_executable(osasm_integer_test osasm_integer_test.cpp)
+target_link_libraries(osasm_integer_test osasmcore utils)
+add_test(NAME osasm_integer_test COMMAND osasm_integer_test)

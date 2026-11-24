@@ -170,6 +170,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       CHANNEL: ${{ needs.metadata.outputs.channel }}
       TAG: ${{ needs.metadata.outputs.tag }}
+      VERSION: ${{ needs.metadata.outputs.version }}
 
     steps:
       - name: Check out repository
@@ -209,13 +210,40 @@ jobs:
           git push --force origin "refs/tags/$TAG:refs/tags/$TAG"
 
           notes="Automated ${CHANNEL} release for CMake version ${{ needs.metadata.outputs.version }} from ${GITHUB_SHA}."
+          if [[ "$CHANNEL" == "dev" ]]; then
+            previous_tag="$(
+              gh release list --limit 200 --json tagName,isPrerelease,createdAt --jq \
+                --arg tag "$TAG" \
+                '[.[] | select(.isPrerelease and .tagName != $tag)]
+                 | sort_by(.createdAt) | reverse | .[0].tagName // ""'
+            )"
+          else
+            previous_tag="$(
+              gh release list --limit 200 --json tagName,isPrerelease,createdAt --jq \
+                '[.[] | select(.isPrerelease | not)]
+                 | sort_by(.createdAt) | reverse | .[0].tagName // ""'
+            )"
+            if [[ -z "$previous_tag" ]]; then
+              previous_tag="$(
+                gh release list --limit 200 --json tagName,isPrerelease,createdAt --jq \
+                  --arg current_dev_tag "vertex-dev-v${VERSION}" \
+                  '[.[] | select(.isPrerelease and .tagName != $current_dev_tag)]
+                   | sort_by(.createdAt) | reverse | .[0].tagName // ""'
+              )"
+            fi
+          fi
+
           release_args=(
             "$TAG"
             dist/*
             --title "$TAG"
             --notes "$notes"
+            --generate-notes
             --verify-tag
           )
+          if [[ -n "$previous_tag" ]]; then
+            release_args+=(--notes-start-tag "$previous_tag")
+          fi
           if [[ "$CHANNEL" == "dev" ]]; then
             release_args+=(--prerelease)
           fi

@@ -17,6 +17,13 @@ public:
         tokens_.push_back({kind, text, span});
     }
     void clear_tokens() { tokens_.clear(); }
+    bool letter(char c) const {
+        return std::isalpha(static_cast<unsigned char>(c));
+    }
+    bool digit(char c) const {
+        return std::isdigit(static_cast<unsigned char>(c));
+    }
+    
 
 private:
     Source source_;

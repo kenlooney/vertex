@@ -2,7 +2,6 @@
 #include <filesystem>
 #include <string>
 #include "vertex/loaders/cpuloader.h"
-#include "vertex/loaders/grammarloader.h"
 #include "vertex/loaders/languageloader.h"
 #ifdef _WIN32
 #include <windows.h>
@@ -26,17 +25,16 @@ static bool isLoaded(const std::string& path) {
 #endif
 }
 
-// Usage: pluginloader_test <cpu-plugin> <language-plugin> <grammar-plugin> <non-plugin-library>
+// Usage: pluginloader_test <cpu-plugin> <language-plugin> <non-plugin-library>
 int main(int argc, char* argv[]) {
-    if (argc < 5) {
+    if (argc < 4) {
         std::fprintf(stderr,
-                     "Usage: pluginloader_test <cpu-plugin> <language-plugin> <grammar-plugin> <non-plugin-library>\n");
+                     "Usage: pluginloader_test <cpu-plugin> <language-plugin> <non-plugin-library>\n");
         return 2;
     }
     const std::string cpuPlugin = argv[1];
     const std::string languagePlugin = argv[2];
-    const std::string grammarPlugin = argv[3];
-    const std::string notPlugin = argv[4];
+    const std::string notPlugin = argv[3];
     std::string error;
 
     {
@@ -60,13 +58,10 @@ int main(int argc, char* argv[]) {
 
     {
         LanguageLoader languages;
-        GrammarLoader grammars;
         check(languages.open(languagePlugin, error) && languages.language()->name() == "example",
               "LanguageLoader creates the plugin's Language");
-        check(grammars.open(grammarPlugin, error) && grammars.grammar()->name() == "example",
-              "GrammarLoader creates the plugin's Grammar");
     }
-    check(!isLoaded(languagePlugin) && !isLoaded(grammarPlugin), "language and grammar plugins are unloaded");
+    check(!isLoaded(languagePlugin), "language plugin is unloaded");
 
     {
         LanguageLoader loader;

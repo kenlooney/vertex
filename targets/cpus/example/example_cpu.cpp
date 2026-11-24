@@ -11,5 +11,8 @@ public:
 class ExampleCpu : public Cpu {
 public:
     ExampleCpu() : Cpu("example", std::make_unique<ExampleRegisterFile>()) {}
+    void reset() override {
+        // Reset logic for ExampleCpu
+    }
 };
 VERTEX_REGISTER_CPU(ExampleCpu)

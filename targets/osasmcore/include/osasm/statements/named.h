@@ -14,15 +14,16 @@ public:
         Span span,
         std::string kind,
         std::string name,
-        std::vector<Token> operands = {})
+        std::vector<std::vector<Token>> operands = {})
         : Statement(span, std::move(kind)),
           name_(std::move(name)),
           operands_(std::move(operands)) {}
 
     const std::string& name() const { return name_; }
-    const std::vector<Token>& operands() const { return operands_; }
+    void set_name(const std::string& name) { name_ = name; }
+    const std::vector<std::vector<Token>>& operands() const { return operands_; }
 
 private:
     std::string name_;
-    std::vector<Token> operands_;
+    std::vector<std::vector<Token>> operands_;
 };

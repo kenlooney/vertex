@@ -8,7 +8,7 @@ public:
     InstructionStatement(
         Span span,
         std::string opcode,
-        std::vector<Token> operands)
+        std::vector<std::vector<Token>> operands)
         : NamedStatement(
               span,
               "instruction",

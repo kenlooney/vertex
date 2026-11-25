@@ -37,3 +37,7 @@ add_test(NAME osasm_newline_test COMMAND osasm_newline_test)
 add_executable(osasm_statements_test osasm_statements_test.cpp)
 target_link_libraries(osasm_statements_test osasmcore)
 add_test(NAME osasm_statements_test COMMAND osasm_statements_test "${EXAMPLES_DIR}/statements.asm")
+
+add_executable(osasm_semantic_test osasm_semantic_test.cpp)
+target_link_libraries(osasm_semantic_test osasmcore)
+add_test(NAME osasm_semantic_test COMMAND osasm_semantic_test "${EXAMPLES_DIR}/directives.asm")

@@ -152,9 +152,10 @@ targets/
   vertex/       Core types, parser foundations, plugin interfaces, and loaders
   utils/        Shared numeric conversion and utility code
   osasm/        osasm command-line executable
-  osasmcore/    osasm lexer, parser, statement/semantic models, and expression AST
+  osasmcore/    osasm assembly orchestration and assembler integration
   cpus/         CPU plugins
-  languages/    Language plugins
+  languages/    Language plugins and language frontends
+    kasmlang/   Ken's Assembly Language lexer, parser, AST, statements, and semantics
 tests/          CTest-based tests
 examples/       Sample assembly input
 ```

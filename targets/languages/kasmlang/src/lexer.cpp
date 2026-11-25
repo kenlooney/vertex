@@ -1,4 +1,4 @@
-#include "osasm/lexer.h"
+#include "kasmlang/lexer.h"
 #include "vertex/common/span.h"
 
 #include <algorithm>
@@ -132,9 +132,9 @@ namespace
 
         return begin;
     }
-}
+} // namespace kasmlang
 
-std::vector<Token> OsasmLexer::tokenize()
+std::vector<Token> KasmLexer::tokenize()
 {
     std::string text = this->source().text;
     std::size_t cursor = 0;

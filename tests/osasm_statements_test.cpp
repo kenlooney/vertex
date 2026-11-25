@@ -1,8 +1,8 @@
-#include "osasm/lexer.h"
-#include "osasm/parser.h"
-#include "osasm/statements/instructions.h"
-#include "osasm/statements/labels.h"
-#include "osasm/statements/named.h"
+#include "kasmlang/lexer.h"
+#include "kasmlang/parser.h"
+#include "kasmlang/statements/instructions.h"
+#include "kasmlang/statements/labels.h"
+#include "kasmlang/statements/named.h"
 
 #include <iostream>
 #include <memory>
@@ -21,8 +21,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    OsasmLexer lexer(source);
-    OsasmParser parser(lexer.tokenize());
+    KasmLexer lexer(source);
+    KasmParser parser(lexer.tokenize());
     std::vector<std::unique_ptr<Statement>> statements;
     std::string error;
 

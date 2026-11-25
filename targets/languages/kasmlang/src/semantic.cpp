@@ -1,7 +1,8 @@
-#include "osasm/semantic.h"
-#include "osasm/statements/statements.h"
+#include "kasmlang/semantic.h"
+#include "kasmlang/statements/statements.h"
 #include "utils/integer.h"
-bool OasmSemanticAnalyzer::analyze(
+
+bool KasmSemanticAnalyzer::analyze(
     const std::vector<std::unique_ptr<Statement>>& statements,
     std::string& error)
 {

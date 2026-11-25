@@ -1,5 +1,5 @@
-#include "osasm/parser.h"
-#include "osasm/statements/statements.h"
+#include "kasmlang/parser.h"
+#include "kasmlang/statements/statements.h"
 
 #include "utils/integer.h"
 #include <limits>
@@ -7,13 +7,13 @@
 #include <vector>
 
 
-std::size_t OsasmParser::add_node(Node node) {
+std::size_t KasmParser::add_node(Node node) {
     const std::size_t index = expression_.nodes.size();
     expression_.nodes.push_back(std::move(node));
     return index;
 }
 
-bool OsasmParser::number(std::size_t& node, std::string& error)
+bool KasmParser::number(std::size_t& node, std::string& error)
 {
     if(at_end() || peek().kind != "integer") {
         error = "Expected an integer";
@@ -32,7 +32,7 @@ bool OsasmParser::number(std::size_t& node, std::string& error)
     return true;
 }
 
-bool OsasmParser::primary(std::size_t& node, std::string& error)
+bool KasmParser::primary(std::size_t& node, std::string& error)
 {
     if(!at_end() && peek().kind == "punctuation" && peek().text == "(") {
         advance();
@@ -52,7 +52,7 @@ bool OsasmParser::primary(std::size_t& node, std::string& error)
     return number(node, error);
 }
 
-bool OsasmParser::sum(std::size_t& node, std::string& error)
+bool KasmParser::sum(std::size_t& node, std::string& error)
 {
     if(!product(node, error)) {
         return false;
@@ -71,7 +71,7 @@ bool OsasmParser::sum(std::size_t& node, std::string& error)
     return true;
 }
 
-bool OsasmParser::product(std::size_t& node, std::string& error)
+bool KasmParser::product(std::size_t& node, std::string& error)
 {
     if(!primary(node, error)) {
         return false;
@@ -90,7 +90,7 @@ bool OsasmParser::product(std::size_t& node, std::string& error)
     return true;
 }
 
-bool OsasmParser::run(std::string& error)
+bool KasmParser::run(std::string& error)
 {
     expression_.nodes.clear();
     expression_.root = Node::no_child;
@@ -110,7 +110,7 @@ bool OsasmParser::run(std::string& error)
 
 bool parse_expression(const std::vector<Token>& tokens, Expression& expression, std::string& error) {
     Expression parsed;
-    OsasmParser parser(tokens, parsed);
+    KasmParser parser(tokens, parsed);
     if(!parser.run(error)) {
         return false;
     }
@@ -182,7 +182,7 @@ bool evaluate(const Expression& tree, std::size_t index, std::uint64_t& value, s
     return true;
 }
 
-bool OsasmParser::parse_statement(
+bool KasmParser::parse_statement(
     std::unique_ptr<Statement>& statement,
     std::string& error)
 {
@@ -241,7 +241,7 @@ bool OsasmParser::parse_statement(
     return true;
 }
 
-bool OsasmParser::parse_statements(std::vector<std::unique_ptr<Statement>>& output, std::string& error) {
+bool KasmParser::parse_statements(std::vector<std::unique_ptr<Statement>>& output, std::string& error) {
     while (!at_end()) {
         while (!at_end() && peek().kind == "newline") advance();
         if (at_end()) break;

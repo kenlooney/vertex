@@ -1,19 +1,19 @@
 #pragma once
 #include <memory>
 #include "vertex/common/grammar.h"
-#include "osasm/lexer.h"
-#include "osasm/parser.h"
+#include "lexer.h"
+#include "parser.h"
 
-class OsasmGrammar : public Grammar {
+class KasmGrammar : public Grammar {
 public:
-    OsasmGrammar() : Grammar("osasm") {}
+    KasmGrammar() : Grammar("kasmlang") {}
 
 protected:
     std::unique_ptr<Lexer> make_lexer(const Source& source) override {
-        return std::make_unique<OsasmLexer>(source);
+        return std::make_unique<KasmLexer>(source);
     }
 
     std::unique_ptr<Parser> make_parser(std::vector<Token> tokens) override {
-        return std::make_unique<OsasmParser>(std::move(tokens));
+        return std::make_unique<KasmParser>(std::move(tokens));
     }
 };

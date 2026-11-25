@@ -1,7 +1,7 @@
-#include "osasm/lexer.h"
-#include "osasm/parser.h"
-#include "osasm/semantic.h"
-#include "osasm/statements/directives.h"
+#include "kasmlang/lexer.h"
+#include "kasmlang/parser.h"
+#include "kasmlang/semantic.h"
+#include "kasmlang/statements/directives.h"
 
 #include <iostream>
 #include <memory>
@@ -20,8 +20,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    OsasmLexer lexer(source);
-    OsasmParser parser(lexer.tokenize());
+    KasmLexer lexer(source);
+    KasmParser parser(lexer.tokenize());
     std::vector<std::unique_ptr<Statement>> statements;
     std::string error;
     if(!parser.parse_statements(statements, error)) {
@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    OasmSemanticAnalyzer analyzer;
+    KasmSemanticAnalyzer analyzer;
     if(!analyzer.analyze(statements, error)) {
         std::cerr << "Semantic analysis failed: " << error << '\n';
         return 1;

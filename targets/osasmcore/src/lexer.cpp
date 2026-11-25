@@ -1,6 +1,12 @@
 #include "osasm/lexer.h"
 #include "vertex/common/span.h"
 
+#include <algorithm>
+#include <iterator>
+#include <string>
+#include <string_view>
+
+constexpr std::string_view directives[] = {"db"};
 namespace
 {
     char lower_ascii(char ch)
@@ -222,7 +228,16 @@ std::vector<Token> OsasmLexer::tokenize()
             {
                 ++cursor;
             }
-            add_token("identifier", text.substr(begin, cursor - begin), Span::set(begin, cursor));
+            // Check if the identifier is a directive
+            const std::string identifier = text.substr(begin, cursor - begin);
+            if (std::find(
+                    std::begin(directives),
+                    std::end(directives),
+                    identifier) != std::end(directives)) {
+                add_token("directive", identifier, Span::set(begin, cursor));
+                continue;
+            }
+            add_token("identifier", identifier, Span::set(begin, cursor));
             continue;
         }
 

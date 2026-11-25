@@ -1,6 +1,5 @@
 #include "osasm/parser.h"
-#include "osasm/statements/labels.h"
-#include "osasm/statements/instructions.h"
+#include "osasm/statements/statements.h"
 
 #include "utils/integer.h"
 #include <limits>
@@ -194,12 +193,28 @@ bool OsasmParser::parse_statement(
     const Token first = advance();
     const std::size_t begin = first.span.begin;
     std::size_t end = first.span.end;
-    std::vector<Token> operands;
+    std::vector<std::vector<Token>> operands;
+    std::vector<Token> operand;
 
     while(!at_end() && peek().kind != "newline") {
-        const Token operand = advance();
-        operands.push_back(operand);
-        end = operand.span.end;
+        const Token token = advance();
+        end = token.span.end;
+        if(token.kind == "punctuation" && token.text == ",") {
+            if(operand.empty()) {
+                error = "Expected an operand before ','.";
+                return false;
+            }
+            operands.push_back(std::move(operand));
+            operand.clear();
+        } else {
+            operand.push_back(token);
+        }
+    }
+    if(!operand.empty()) {
+        operands.push_back(std::move(operand));
+    } else if(!operands.empty()) {
+        error = "Statement cannot end with ','.";
+        return false;
     }
     if(!at_end()) advance(); // Consume the newline token if present
 
@@ -208,6 +223,12 @@ bool OsasmParser::parse_statement(
     }
     else if(first.kind == "identifier") {
         statement = std::make_unique<InstructionStatement>(
+            Span::set(begin, end),
+            first.text,
+            std::move(operands));
+    }
+    else if(first.kind == "directive") {
+        statement = std::make_unique<DirectiveStatement>(
             Span::set(begin, end),
             first.text,
             std::move(operands));

@@ -5,9 +5,9 @@
 Vertex is an experimental framework for assembling and compiling through interchangeable CPU, language, and grammar components. Its flagship project, **osasm**, is intended to grow into an assembler with its own assembly language and grammar, starting with a simplified x86 target.
 
 The project is under active development. The plugin loading foundation, OSASM lexer,
-expression parser/AST, and line-to-statement parser are in place. Instruction-specific
-operands, intermediate representations, and code generation are the next frontend
-milestones.
+expression parser/AST, line-to-statement parser, and semantic analysis foundation
+are in place. Instruction-specific operand validation, intermediate representations,
+and code generation are the next frontend milestones.
 
 ## What exists today
 
@@ -26,10 +26,13 @@ milestones.
   line comments.
 - A shared `Statement` boundary with OSASM label, instruction, and directive
   statement types.
-- Line-to-statement parsing that preserves instruction names and raw operand tokens.
+- Line-to-statement parsing with comma-delimited operand groups.
+- OSASM directive recognition and initial semantic validation for `db` byte values.
+- Width-checked `uint8_t` parsing built on the shared integer conversion utility.
+- Shared and OSASM semantic analyzer interfaces.
 - Shared `Option`/`Options` utilities and an `Assembler` framework interface.
 - Shared numeric conversion utilities and focused CTest coverage for lexer, parser,
-  AST, comments, integer handling, and statements.
+  AST, comments, integer handling, statements, and semantics.
 - An `osasm` command-line target with input, output, and CPU-plugin arguments.
 
 The OSASM frontend is still experimental and is not yet a complete assembler.
@@ -44,9 +47,8 @@ assembly source -> lexer -> parser -> AST -> IR -> CPU-specific output
 
 CPU plugins will provide target-specific register and instruction information. The grammar and frontend will define the assembly language and translate it into an intermediate representation before handing off target-specific work.
 
-The next parser milestone is validating instruction operands and attaching parsed
-expression trees to statement operands. Instruction-specific validation and IR
-lowering will follow.
+The next parser milestone is attaching parsed expression trees to statement operand
+groups. Instruction-specific semantic validation and IR lowering will follow.
 
 ## Build and test
 
@@ -58,23 +60,24 @@ Configure the project:
 cmake -S . -B build
 ```
 
-Build and run the OSASM statement parser test:
+Build and run the OSASM semantic test:
 
 ```sh
-cmake --build build --target osasm_statements_test
-ctest --test-dir build -R osasm_statements_test --output-on-failure
+cmake --build build --target osasm_semantic_test
+ctest --test-dir build -R osasm_semantic_test --output-on-failure
 ```
 
 For a multi-configuration generator such as Visual Studio, specify the configuration:
 
 ```powershell
-cmake --build build --config Debug --target osasm_statements_test
-ctest --test-dir build -C Debug -R osasm_statements_test --output-on-failure
+cmake --build build --config Debug --target osasm_semantic_test
+ctest --test-dir build -C Debug -R osasm_semantic_test --output-on-failure
 ```
 
-The statement test loads [`examples/statements.asm`](examples/statements.asm), then
-verifies typed label/instruction statements and their raw operands. The expression
-tests separately cover AST construction, evaluation, precedence, grouping, mixed
+The semantic test loads [`examples/directives.asm`](examples/directives.asm), then
+verifies directive recognition, comma-delimited operand grouping, and byte-range
+validation. The statement test separately covers labels and instructions, while the
+expression tests cover AST construction, evaluation, precedence, grouping, mixed
 numeric bases, and arithmetic error cases.
 
 ## Automated releases
@@ -149,7 +152,7 @@ targets/
   vertex/       Core types, parser foundations, plugin interfaces, and loaders
   utils/        Shared numeric conversion and utility code
   osasm/        osasm command-line executable
-  osasmcore/    osasm lexer, parser, statement model, and expression AST
+  osasmcore/    osasm lexer, parser, statement/semantic models, and expression AST
   cpus/         CPU plugins
   languages/    Language plugins
 tests/          CTest-based tests

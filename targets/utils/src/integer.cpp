@@ -12,6 +12,16 @@ bool parse_byte(const std::string& text, std::uint8_t& value) {
     value = static_cast<std::uint8_t>(temp);
     return true;
 }
+
+bool parse_word(const std::string& text, std::uint16_t& value) {
+    std::uint64_t temp;
+    if(!parse_integer(text, temp) || temp > std::numeric_limits<std::uint16_t>::max()) {
+        return false;
+    }
+    value = static_cast<std::uint16_t>(temp);
+    return true;
+}
+
 bool parse_integer(const std::string& text, std::uint64_t& value) {
     if(text.empty()) {
         return false;

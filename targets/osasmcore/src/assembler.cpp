@@ -55,7 +55,13 @@ std::unique_ptr<OptionResult> OsasmAssembler::assemble(
     }
 
     std::vector<std::uint8_t> output;
-    if (!grammar()->collect_bytes(statements, output, error))
+    
+    if(!cpu()) {
+        OsasmDiagnostic diag(source.path, "No CPU configured", Span{0, 0});
+        diag.report();
+        return result;
+    }
+    if (!grammar()->collect_bytes(statements, output, cpu()->endianness(), error))
     {
         OsasmDiagnostic diag(source.path, error, Span{0, 0});
         diag.report();

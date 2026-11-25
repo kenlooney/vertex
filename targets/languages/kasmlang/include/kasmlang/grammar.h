@@ -34,6 +34,7 @@ public:
     bool collect_bytes(
         const std::vector<std::unique_ptr<Statement>> &statements,
         std::vector<std::uint8_t> &output,
+        Endianness endianness,
         std::string &error) override
     {
         if (!analyze(statements, error))
@@ -48,21 +49,45 @@ public:
             const auto *directive =
                 dynamic_cast<const DirectiveStatement *>(statement.get());
 
-            if (!directive || directive->name() != "db")
+            if (!directive || (directive->name() != "db" && directive->name() != "dw"))
             {
-                error = "Byte collection currently supports only 'db' directives";
+                error = "Byte collection currently supports only 'db' and 'dw' directives";
                 return false;
             }
 
             for (const auto &operand : directive->operands())
             {
-                std::uint8_t byte = 0;
-                if (!parse_byte(operand.front().text, byte))
+                if (directive->name() == "dw")
                 {
-                    error = "Invalid byte value: " + operand.front().text;
-                    return false;
+                    std::uint16_t word = 0;
+                    if (!parse_word(operand.front().text, word))
+                    {
+                        error = "Invalid word value: " + operand.front().text;
+                        return false;
+                    }
+                   
+                    if (endianness == Endianness::Little)
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>(word & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((word >> 8) & 0xFF));
+                    }
+                    else
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>((word >> 8) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>(word & 0xFF));
+                    }
+                    continue;
                 }
-                bytes.push_back(byte);
+                else if (directive->name() == "db")
+                {
+                    std::uint8_t byte = 0;
+                    if (!parse_byte(operand.front().text, byte))
+                    {
+                        error = "Invalid byte value: " + operand.front().text;
+                        return false;
+                    }
+                    bytes.push_back(byte);
+                }
             }
         }
 

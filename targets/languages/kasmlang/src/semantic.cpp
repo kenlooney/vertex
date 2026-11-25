@@ -31,6 +31,26 @@ bool KasmSemanticAnalyzer::analyze(
                     }
                 }
             }
+            if(dirStmt->name() == "dw") {
+                if(dirStmt->operands().empty()) {
+                    error = "The 'dw' directive requires at least one operand.";
+                    return false;
+                }
+
+                for(const auto& operand : dirStmt->operands()) {
+                    if(operand.size() != 1 || operand.front().kind != "integer") {
+                        error = "The 'dw' directive expects integer word operands.";
+                        return false;
+                    }
+
+                    std::uint16_t value;
+                    if(!parse_word(operand.front().text, value)) {
+                        error = "The 'dw' directive contains an invalid word value: "
+                            + operand.front().text;
+                        return false;
+                    }
+                }
+            }
         }
     }
 

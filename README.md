@@ -126,6 +126,10 @@ validation. The statement test separately covers labels and instructions, while 
 expression tests cover AST construction, evaluation, precedence, grouping, mixed
 numeric bases, and arithmetic error cases.
 
+The `osasm_bytes_test` checks exact byte vectors for mixed `db`/`dw` statements
+in little- and big-endian order. It also checks that an overflowing `dw` value
+is rejected with an error without modifying the caller's output vector.
+
 ### Debugging in VS Code on Windows
 
 The checked-in [launch configuration](.vscode/launch.json) uses the Microsoft C++

@@ -1,13 +1,19 @@
-#include "osasm/grammar.h"
-#include "osasm/diagnostic.h"
+#include "kasmlang/grammar.h"
 #include "vertex/common/source.h"
 #include "vertex/common/token.h"
+
 #include <iostream>
+
 int main(int argc, char** argv) {
-    OsasmGrammar grammar;
+    if(argc != 2) {
+        std::cerr << "Expected a source fixture path\n";
+        return 1;
+    }
+
+    KasmGrammar grammar;
     Source source;
     if(!Source::load(argv[1], source)) {
-        OsasmDiagnostic diagnostic = OsasmDiagnostic("<unknown>", "Failed to load source file", Span::set(0, 0));
+        std::cerr << "Failed to load source file: " << argv[1] << '\n';
         return 1;
     }
     grammar.set_source(source);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "osasm/statements/named.h"
+#include "kasmlang/statements/named.h"
 
 class InstructionStatement : public NamedStatement
 {

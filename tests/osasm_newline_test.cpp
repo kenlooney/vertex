@@ -1,4 +1,4 @@
-#include "osasm/lexer.h"
+#include "kasmlang/lexer.h"
 #include "vertex/common/source.h"
 
 #include <iostream>
@@ -11,7 +11,7 @@ int main() {
         "; first\r\nnop\r// second\rhalt\nlast",
     };
 
-    OsasmLexer lexer(source);
+    KasmLexer lexer(source);
     const std::vector<Token> tokens = lexer.tokenize();
     const std::vector<std::string> expected_kinds = {
         "newline",

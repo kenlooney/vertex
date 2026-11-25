@@ -4,7 +4,7 @@
 #include <string_view>
 #include "vertex/loaders/cpuloader.h"
 #include "osasm/assembler.h"
-#include "osasm/grammar.h"
+#include "kasmlang/grammar.h"
 
 
 int main(int argc, char* argv[]) {
@@ -28,7 +28,7 @@ int main(int argc, char* argv[]) {
 
     // Construct assembler and grammar
     OsasmAssembler assembler;
-    OsasmGrammar grammar;
+    KasmGrammar grammar;
     assembler.setCpu(loader.cpu());
     assembler.setGrammar(&grammar);
 
@@ -47,6 +47,8 @@ int main(int argc, char* argv[]) {
     Options options;
     options.add(std::make_unique<StringOption>("input", argv[2]));
     options.add(std::make_unique<StringOption>("output", outputFileName));
+    
+
     auto result = assembler.assemble(source, options);
 
     if (!loader.close()) {

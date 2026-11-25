@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
         std::cerr << "Failed to parse label statement\n";
         return 1;
     }
-    if(!mov || mov->name() != "mov" || mov->operands().size() != 3) {
+    if(!mov || mov->name() != "mov" || mov->operands().size() != 2) {
         std::cerr << "Failed to parse mov operands\n";
         return 1;
     }

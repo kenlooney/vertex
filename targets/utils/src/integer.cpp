@@ -1,5 +1,17 @@
 #include "utils/integer.h"
 
+#include <cctype>
+#include <limits>
+#include <string>
+
+bool parse_byte(const std::string& text, std::uint8_t& value) {
+    std::uint64_t temp;
+    if(!parse_integer(text, temp) || temp > std::numeric_limits<std::uint8_t>::max()) {
+        return false;
+    }
+    value = static_cast<std::uint8_t>(temp);
+    return true;
+}
 bool parse_integer(const std::string& text, std::uint64_t& value) {
     if(text.empty()) {
         return false;

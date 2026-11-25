@@ -193,7 +193,7 @@ int main() {
     const auto* instruction = dynamic_cast<InstructionStatement*>(statements[1].get());
     if(!label || label->name() != "start"
         || !instruction || instruction->name() != "mov"
-        || instruction->operands().size() != 3) {
+        || instruction->operands().size() != 2) {
         std::cerr << "Unexpected parsed statement data\n";
         return 1;
     }

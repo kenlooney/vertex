@@ -8,7 +8,7 @@ public:
     DirectiveStatement(
         Span span,
         std::string name,
-        std::vector<Token> operands)
+        std::vector<std::vector<Token>> operands)
         : NamedStatement(
               span,
               "directive",

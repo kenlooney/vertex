@@ -47,6 +47,8 @@ int main(int argc, char* argv[]) {
     Options options;
     options.add(std::make_unique<StringOption>("input", argv[2]));
     options.add(std::make_unique<StringOption>("output", outputFileName));
+    
+
     auto result = assembler.assemble(source, options);
 
     if (!loader.close()) {

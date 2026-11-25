@@ -10,7 +10,7 @@ public:
 };
 class X86Cpu : public Cpu {
 public:
-    X86Cpu() : Cpu("x86", std::make_unique<X86RegisterFile>()) {}
+    X86Cpu() : Cpu("x86", std::make_unique<X86RegisterFile>(), Endianness::Little) {}
     void reset() override {
         // Reset logic for X86Cpu
     }

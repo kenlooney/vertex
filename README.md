@@ -4,17 +4,20 @@
 
 Vertex is an experimental framework for assembling and compiling through interchangeable CPU, language, and grammar components. Its flagship project, **osasm**, is intended to grow into an assembler with its own assembly language and grammar, starting with a simplified x86 target.
 
-The project is under active development. The plugin loading foundation, OSASM lexer,
-expression parser/AST, line-to-statement parser, and semantic analysis foundation
-are in place. Instruction-specific operand validation, intermediate representations,
-and code generation are the next frontend milestones.
+The project is under active development. The plugin loading foundation, KASM lexer,
+expression parser/AST, line-to-statement parser, semantic analysis, and `db` byte
+collection are in place. CPU plugins declare their default data endianness.
+Returning collected bytes, binary-file output, instruction-specific operand
+validation, intermediate representations, and instruction encoding remain unfinished.
 
 ## What exists today
 
 - Runtime-loaded CPU, language, and grammar plugin interfaces.
 - A CPU register file owned by its CPU instance.
+- An `Endianness` enum (`Little`/`Big`) and a CPU default data byte-order accessor.
 - `Source`, `Token`, and `Span` types, plus shared lexer and parser foundations.
-- An `OsasmGrammar` that creates an `OsasmLexer` and `OsasmParser`.
+- A shared `kasmlang` library (Ken's Assembly Language) with a `KasmGrammar` that
+  creates a `KasmLexer` and `KasmParser`.
 - Lexing for labels, identifiers, integers, punctuation, and traditional/C-style
   comments.
 - Modern-prefix and legacy-suffix integer literals in binary, octal, decimal, and
@@ -24,18 +27,61 @@ and code generation are the next frontend milestones.
 - An index-based expression AST arena plus an overflow-checked tree evaluator.
 - Newline tokens for LF, CRLF, and CR source lines, including correct handling around
   line comments.
-- A shared `Statement` boundary with OSASM label, instruction, and directive
+- A shared `Statement` boundary with KASM label, instruction, and directive
   statement types.
 - Line-to-statement parsing with comma-delimited operand groups.
-- OSASM directive recognition and initial semantic validation for `db` byte values.
+- KASM directive recognition and initial semantic validation for `db` byte values.
+- Grammar-level statement parsing, semantic analysis, and byte-collection contracts,
+  keeping language-specific behavior out of the shared parser and assembler.
+- OSASM orchestration of those stages, collecting `db` operands into a byte vector
+  in source order without publishing partial bytes on collection failure.
 - Width-checked `uint8_t` parsing built on the shared integer conversion utility.
-- Shared and OSASM semantic analyzer interfaces.
+- A shared semantic analyzer interface and KASM semantic analyzer implementation.
 - Shared `Option`/`Options` utilities and an `Assembler` framework interface.
 - Shared numeric conversion utilities and focused CTest coverage for lexer, parser,
   AST, comments, integer handling, statements, and semantics.
 - An `osasm` command-line target with input, output, and CPU-plugin arguments.
 
-The OSASM frontend is still experimental and is not yet a complete assembler.
+The KASM frontend and OSASM assembler are still experimental and are not yet a
+complete assembler.
+
+## Byte collection and endianness
+
+The current data-only pipeline is:
+
+```text
+source -> KASM lexing -> statements -> semantic checks -> db byte vector
+```
+
+Each comma-delimited `db` operand contributes one byte. For example,
+[`examples/directives.asm`](examples/directives.asm):
+
+```asm
+db 0x5
+db 0xFF, 42
+db 0x1, 0x2, 0x3, 0x4, 0x5
+```
+
+produces these eight byte values:
+
+```text
+5, 255, 42, 1, 2, 3, 4, 5
+```
+
+The collector currently accepts only `db` directives; labels, instructions, and
+other directives are rejected at this stage. Each operand must be a single integer
+token representing a value from 0 to 255. Expression evaluation is not yet
+connected to directive operands.
+
+Bytes currently remain local to `OsasmAssembler::assemble`; they are not returned,
+printed, or written to the requested output file. The assemble result remains
+unsuccessful even after valid byte collection, so the CLI still exits with code 1.
+
+CPU plugins specify their default data byte order through the `Cpu` constructor
+and expose it through `endianness()`. The x86 plugin declares `Endianness::Little`.
+This is metadata for future multi-byte emission, not an instruction encoder.
+Endianness does not change `db` output: operands always stay in source order.
+Future multi-byte values will need explicit target-endian serialization.
 
 ## Project direction
 
@@ -80,6 +126,19 @@ validation. The statement test separately covers labels and instructions, while 
 expression tests cover AST construction, evaluation, precedence, grouping, mixed
 numeric bases, and arithmetic error cases.
 
+### Debugging in VS Code on Windows
+
+The checked-in [launch configuration](.vscode/launch.json) uses the Microsoft C++
+debugger. With the C/C++ and CMake Tools extensions installed, select the
+`windows-debug` configure and build presets, then build `osasm` and `x86_cpu`.
+In Run and Debug, select **Debug osasm (directives)** and click the green arrow
+or press F5.
+
+The configuration supplies the directive fixture, output path, and CPU-plugin
+path. A breakpoint at the final return in `OsasmAssembler::assemble` lets you
+inspect the collected `output` vector. Rebuild after code changes before starting
+another debug session.
+
 ## Automated releases
 
 Pushes to `dev` publish prereleases named `vertex-dev-v<version>`. Pushes or merges to
@@ -113,7 +172,8 @@ CPU, language, and grammar plugins are shared libraries. Each plugin kind has a 
 | Language | `Language` | `VERTEX_REGISTER_LANGUAGE` | `LanguageLoader` |
 | Grammar | `Grammar` | `VERTEX_REGISTER_GRAMMAR` | `GrammarLoader` |
 
-For example, a CPU plugin implements its register file and passes it to the `Cpu` base class:
+For example, a CPU plugin implements its register file, declares its default data
+endianness, and implements `reset()`:
 
 ```cpp
 #include <memory>
@@ -129,7 +189,10 @@ public:
 
 class MyCpu : public Cpu {
 public:
-    MyCpu() : Cpu("mycpu", std::make_unique<MyRegisterFile>()) {}
+    MyCpu()
+        : Cpu("mycpu", std::make_unique<MyRegisterFile>(), Endianness::Little) {}
+
+    void reset() override {}
 };
 
 VERTEX_REGISTER_CPU(MyCpu)
@@ -145,6 +208,10 @@ osasm -i <input-file> -o <output-file> <cpu-plugin>
 
 Plugins exchange C++ objects with Vertex, so build them with a compatible compiler and runtime. Keep plugin-created objects alive only while their plugin is loaded. Bump a plugin kind's ABI version whenever its base class or plugin interface changes.
 
+The CPU and grammar plugin ABI versions are currently **2**. Rebuild older CPU
+plugins for the endianness member and older grammar plugins for the new
+grammar-level contracts; plugins declaring the previous ABI versions are rejected.
+
 ## Repository layout
 
 ```text
@@ -155,7 +222,7 @@ targets/
   osasmcore/    osasm assembly orchestration and assembler integration
   cpus/         CPU plugins
   languages/    Language plugins and language frontends
-    kasmlang/   Ken's Assembly Language lexer, parser, AST, statements, and semantics
+    kasmlang/   KASM lexer, parser, AST, statements, semantics, and db byte collection
 tests/          CTest-based tests
 examples/       Sample assembly input
 ```

@@ -10,7 +10,7 @@ public:
 };
 class ExampleCpu : public Cpu {
 public:
-    ExampleCpu() : Cpu("example", std::make_unique<ExampleRegisterFile>()) {}
+    ExampleCpu() : Cpu("example", std::make_unique<ExampleRegisterFile>(), Endianness::Little) {}
     void reset() override {
         // Reset logic for ExampleCpu
     }

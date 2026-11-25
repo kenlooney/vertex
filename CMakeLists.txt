@@ -29,12 +29,14 @@ if(APPLE)
   set_target_properties(osasm PROPERTIES INSTALL_RPATH "@loader_path")
   set_target_properties(vertex PROPERTIES INSTALL_RPATH "@loader_path")
   set_target_properties(utils PROPERTIES INSTALL_RPATH "@loader_path")
+  set_target_properties(kasmlang PROPERTIES INSTALL_RPATH "@loader_path")
 elseif(UNIX)
   set_target_properties(osasm PROPERTIES INSTALL_RPATH "$ORIGIN")
   set_target_properties(vertex PROPERTIES INSTALL_RPATH "$ORIGIN")
   set_target_properties(utils PROPERTIES INSTALL_RPATH "$ORIGIN")
+  set_target_properties(kasmlang PROPERTIES INSTALL_RPATH "$ORIGIN")
 endif()
-install(TARGETS osasm vertex utils
+install(TARGETS osasm vertex utils kasmlang
   RUNTIME DESTINATION .
   LIBRARY DESTINATION .)
 install(FILES README.md LICENSE DESTINATION .)

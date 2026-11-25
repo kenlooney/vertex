@@ -1,7 +1,7 @@
 #pragma once
 #include "vertex/common/semantic.h"
 
-class OasmSemanticAnalyzer : public SemanticAnalyzer
+class KasmSemanticAnalyzer : public SemanticAnalyzer
 {
 public:
     bool analyze(

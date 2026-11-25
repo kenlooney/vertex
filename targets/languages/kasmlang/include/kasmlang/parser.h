@@ -4,7 +4,7 @@
 #include "vertex/common/token.h"
 #include "vertex/common/statement.h"
 
-#include "osasm/ast.h"
+#include "kasmlang/ast.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -15,14 +15,14 @@
 
 bool parse_expression(const std::vector<Token>& tokens, Expression& expression, std::string& error);
 bool evaluate(const Expression& tree, std::size_t index, std::uint64_t& value, std::string& error);
-class OsasmParser : public Parser {
+class KasmParser : public Parser {
 public:
-    explicit OsasmParser(std::vector<Token> tokens)
+    explicit KasmParser(std::vector<Token> tokens)
         : Parser(std::move(tokens)), expression_(owned_expression_) {}
 
-    explicit OsasmParser(std::vector<Token> tokens, Expression& expression)
+    explicit KasmParser(std::vector<Token> tokens, Expression& expression)
         : Parser(std::move(tokens)), expression_(expression) {}
-    virtual ~OsasmParser() = default;
+    virtual ~KasmParser() = default;
    
     bool number(std::size_t& node, std::string& error);
     bool primary(std::size_t& node, std::string& error);

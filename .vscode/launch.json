@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug osasm (directives)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}\\bin\\Debug\\osasm.exe",
+            "args": [
+                "-i",
+                "${workspaceFolder}\\examples\\directives.asm",
+                "-o",
+                "${workspaceFolder}\\bin\\Debug\\output.bin",
+                "${workspaceFolder}\\bin\\Debug\\x86_cpu.dll"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        }
+    ]
+}

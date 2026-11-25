@@ -1,6 +1,6 @@
-#include "osasm/parser.h"
-#include "osasm/statements/instructions.h"
-#include "osasm/statements/labels.h"
+#include "kasmlang/parser.h"
+#include "kasmlang/statements/instructions.h"
+#include "kasmlang/statements/labels.h"
 
 #include <cstdint>
 #include <cstddef>
@@ -181,7 +181,7 @@ int main() {
         token("newline", "\n"),
         token("identifier", "nop"),
     };
-    OsasmParser statement_parser(statement_tokens);
+    KasmParser statement_parser(statement_tokens);
     std::vector<std::unique_ptr<Statement>> statements;
     if(!statement_parser.parse_statements(statements, error)
         || statements.size() != 3) {

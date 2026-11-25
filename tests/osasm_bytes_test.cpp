@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -72,6 +73,43 @@ int main() {
                 std::cout << ' ' << static_cast<unsigned>(byte);
             }
             std::cout << '\n';
+        }
+    }
+
+    grammar.set_source(Source{
+        "format-debug.asm",
+        "format testformat\ndb 0xAA\ndw 0x1234\n",
+    });
+    statements.clear();
+    if(!grammar.parse_statements(statements, error) ||
+        !grammar.analyze(statements, error)) {
+        std::cerr << "Format debug fixture failed: " << error << '\n';
+        ++failures;
+    } else {
+        for(const auto order : byte_orders) {
+            const char* order_name = order == Endianness::Little ? "Little" : "Big";
+            std::vector<std::uint8_t> output;
+            std::ostringstream debug_output;
+            auto* previous_buffer = std::cout.rdbuf(debug_output.rdbuf());
+            const bool collected = grammar.collect_bytes(statements, output, order, error);
+            std::cout.rdbuf(previous_buffer);
+
+            if(!collected) {
+                std::cerr << order_name << " format collection failed: " << error << '\n';
+                ++failures;
+                continue;
+            }
+            const std::vector<std::uint8_t> expected = order == Endianness::Little
+                ? std::vector<std::uint8_t>{0xAA, 0x34, 0x12}
+                : std::vector<std::uint8_t>{0xAA, 0x12, 0x34};
+            if(output != expected ||
+                debug_output.str() != "Output Format: testformat\n") {
+                std::cerr << order_name << " format debug message or bytes did not match\n";
+                ++failures;
+                continue;
+            }
+            std::cout << debug_output.str()
+                      << order_name << " format directive emitted no extra bytes\n";
         }
     }
 

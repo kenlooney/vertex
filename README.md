@@ -5,8 +5,9 @@
 Vertex is an experimental framework for assembling and compiling through interchangeable CPU, language, and grammar components. Its flagship project, **osasm**, is intended to grow into an assembler with its own assembly language and grammar, starting with a simplified x86 target.
 
 The project is under active development. The plugin loading foundation, OSASM lexer,
-expression parser, and expression AST are in place. Statement parsing, intermediate
-representations, and code generation are the next frontend milestones.
+expression parser/AST, and line-to-statement parser are in place. Instruction-specific
+operands, intermediate representations, and code generation are the next frontend
+milestones.
 
 ## What exists today
 
@@ -21,9 +22,15 @@ representations, and code generation are the next frontend milestones.
 - Expression parsing for `+`, `-`, `*`, `/`, `%`, operator precedence, and nested
   parentheses.
 - An index-based expression AST arena plus an overflow-checked tree evaluator.
+- Newline tokens for LF, CRLF, and CR source lines, including correct handling around
+  line comments.
+- A shared `Statement` boundary with OSASM label, instruction, and directive
+  statement types.
+- Line-to-statement parsing that preserves instruction names and raw operand tokens.
+- Shared `Option`/`Options` utilities and an `Assembler` framework interface.
 - Shared numeric conversion utilities and focused CTest coverage for lexer, parser,
-  AST, comments, and integer handling.
-- An `osasm` command-line target that currently demonstrates loading a CPU plugin.
+  AST, comments, integer handling, and statements.
+- An `osasm` command-line target with input, output, and CPU-plugin arguments.
 
 The OSASM frontend is still experimental and is not yet a complete assembler.
 
@@ -37,9 +44,9 @@ assembly source -> lexer -> parser -> AST -> IR -> CPU-specific output
 
 CPU plugins will provide target-specific register and instruction information. The grammar and frontend will define the assembly language and translate it into an intermediate representation before handing off target-specific work.
 
-The next parser milestone is separating source lines into statements and attaching
-expression trees to those statements. Instruction parsing and IR lowering will
-follow.
+The next parser milestone is validating instruction operands and attaching parsed
+expression trees to statement operands. Instruction-specific validation and IR
+lowering will follow.
 
 ## Build and test
 
@@ -51,22 +58,24 @@ Configure the project:
 cmake -S . -B build
 ```
 
-Build and run the OSASM expression parser/AST test:
+Build and run the OSASM statement parser test:
 
 ```sh
-cmake --build build --target osasm_parser_test
-ctest --test-dir build -R osasm_parser_test --output-on-failure
+cmake --build build --target osasm_statements_test
+ctest --test-dir build -R osasm_statements_test --output-on-failure
 ```
 
 For a multi-configuration generator such as Visual Studio, specify the configuration:
 
 ```powershell
-cmake --build build --config Debug --target osasm_parser_test
-ctest --test-dir build -C Debug -R osasm_parser_test --output-on-failure
+cmake --build build --config Debug --target osasm_statements_test
+ctest --test-dir build -C Debug -R osasm_statements_test --output-on-failure
 ```
 
-The parser test checks AST construction and evaluation, operator precedence, nested
-parentheses, mixed numeric bases, and arithmetic error cases.
+The statement test loads [`examples/statements.asm`](examples/statements.asm), then
+verifies typed label/instruction statements and their raw operands. The expression
+tests separately cover AST construction, evaluation, precedence, grouping, mixed
+numeric bases, and arithmetic error cases.
 
 ## Automated releases
 
@@ -125,10 +134,10 @@ VERTEX_REGISTER_CPU(MyCpu)
 
 Build a plugin with `vertex_add_plugin(<target> <sources...>)`. The example CPU plugin is in [`targets/cpus`](targets/cpus).
 
-The `osasm` executable currently accepts a CPU plugin path:
+The `osasm` executable accepts input, output, and CPU-plugin paths:
 
 ```sh
-osasm <cpu-plugin>
+osasm -i <input-file> -o <output-file> <cpu-plugin>
 ```
 
 Plugins exchange C++ objects with Vertex, so build them with a compatible compiler and runtime. Keep plugin-created objects alive only while their plugin is loaded. Bump a plugin kind's ABI version whenever its base class or plugin interface changes.
@@ -140,7 +149,7 @@ targets/
   vertex/       Core types, parser foundations, plugin interfaces, and loaders
   utils/        Shared numeric conversion and utility code
   osasm/        osasm command-line executable
-  osasmcore/    osasm lexer, parser, and expression AST
+  osasmcore/    osasm lexer, parser, statement model, and expression AST
   cpus/         CPU plugins
   languages/    Language plugins
 tests/          CTest-based tests

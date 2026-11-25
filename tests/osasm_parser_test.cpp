@@ -1,4 +1,6 @@
 #include "osasm/parser.h"
+#include "osasm/statements/instructions.h"
+#include "osasm/statements/labels.h"
 
 #include <cstdint>
 #include <cstddef>
@@ -166,6 +168,33 @@ int main() {
     std::uint64_t overflow_value = 0;
     if(parse_and_evaluate(overflow, overflow_value, error)) {
         std::cerr << "Unexpectedly accepted overflow\n";
+        return 1;
+    }
+
+    const std::vector<Token> statement_tokens = {
+        token("label", "start"),
+        token("newline", "\n"),
+        token("identifier", "mov"),
+        token("identifier", "eax"),
+        token("punctuation", ","),
+        token("integer", "1"),
+        token("newline", "\n"),
+        token("identifier", "nop"),
+    };
+    OsasmParser statement_parser(statement_tokens);
+    std::vector<std::unique_ptr<Statement>> statements;
+    if(!statement_parser.parse_statements(statements, error)
+        || statements.size() != 3) {
+        std::cerr << "Failed to parse statements: " << error << '\n';
+        return 1;
+    }
+
+    const auto* label = dynamic_cast<LabelStatement*>(statements[0].get());
+    const auto* instruction = dynamic_cast<InstructionStatement*>(statements[1].get());
+    if(!label || label->name() != "start"
+        || !instruction || instruction->name() != "mov"
+        || instruction->operands().size() != 3) {
+        std::cerr << "Unexpected parsed statement data\n";
         return 1;
     }
 

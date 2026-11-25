@@ -7,15 +7,17 @@
 class OsasmAssembleOptionResult : public OptionResult
 {
 public:
-    OsasmAssembleOptionResult(std::string inputPath, std::string outputPath)
-        : inputPath_(std::move(inputPath)), outputPath_(std::move(outputPath)) {}
+    OsasmAssembleOptionResult(std::string inputPath, std::string outputPath, std::string format)
+        : inputPath_(std::move(inputPath)), outputPath_(std::move(outputPath)), format_(std::move(format)) {}
 
     const std::string& inputPath() const { return inputPath_; }
     const std::string& outputPath() const { return outputPath_; }
+    const std::string& format() const { return format_; }
 
 private:
     std::string inputPath_;
     std::string outputPath_;
+    std::string format_;
 };
 
 class OsasmAssembler : public Assembler {

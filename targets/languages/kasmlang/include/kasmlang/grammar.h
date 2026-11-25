@@ -6,6 +6,7 @@
 #include "kasmlang/semantic.h"
 #include "kasmlang/statements/statements.h"
 #include "utils/integer.h"
+#include <iostream>
 
 class KasmGrammar : public Grammar
 {
@@ -28,8 +29,14 @@ public:
         const std::vector<std::unique_ptr<Statement>> &statements,
         std::string &error) override
     {
+        set_format("");
         KasmSemanticAnalyzer analyzer;
-        return analyzer.analyze(statements, error);
+        if (!analyzer.analyze(statements, error))
+        {
+            return false;
+        }
+        set_format(analyzer.format());
+        return true;
     }
     bool collect_bytes(
         const std::vector<std::unique_ptr<Statement>> &statements,
@@ -53,9 +60,10 @@ public:
                 directive->name() != "db" && 
                 directive->name() != "dw" && 
                 directive->name() != "dd" &&
-                directive->name() != "dq"))
+                directive->name() != "dq" &&
+                directive->name() != "format"))
             {
-                error = "Byte collection currently supports only 'db', 'dw', 'dd', and 'dq' directives";
+                error = "Byte collection currently supports only 'db', 'dw', 'dd', 'dq', and 'format' directives";
                 return false;
             }
 
@@ -148,6 +156,18 @@ public:
                         return false;
                     }
                     bytes.push_back(byte);
+                }
+                else if (directive->name() == "format")
+                {
+                    // No bytes are generated for the format directive
+                    if (operand.empty())
+                    {
+                        error = "The 'format' directive requires a format specifier.";
+                        return false;
+                    }
+                    std::string format = operand.front().text;
+                    // For now just print the format specifier
+                    std::cout << "Output Format: " << format << std::endl;
                 }
             }
         }

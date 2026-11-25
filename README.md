@@ -5,9 +5,10 @@
 Vertex is an experimental framework for assembling and compiling through interchangeable CPU, language, and grammar components. Its flagship project, **osasm**, is intended to grow into an assembler with its own assembly language and grammar, starting with a simplified x86 target.
 
 The project is under active development. The plugin loading foundation, KASM lexer,
-expression parser/AST, line-to-statement parser, semantic analysis, and `db` byte
-collection are in place. CPU plugins declare their default data endianness.
-Returning collected bytes, binary-file output, instruction-specific operand
+expression parser/AST, line-to-statement parser, semantic analysis, endian-aware
+`db`/`dw`/`dd`/`dq` data collection, and raw binary file output are in place.
+CPU plugins declare their default data endianness.
+Returning collected bytes, instruction-specific operand
 validation, intermediate representations, and instruction encoding remain unfinished.
 
 ## What exists today
@@ -30,12 +31,17 @@ validation, intermediate representations, and instruction encoding remain unfini
 - A shared `Statement` boundary with KASM label, instruction, and directive
   statement types.
 - Line-to-statement parsing with comma-delimited operand groups.
-- KASM directive recognition and initial semantic validation for `db` byte values.
+- KASM directive recognition and unsigned range validation for `db`, `dw`, `dd`,
+  and `dq`, plus optional `format` metadata.
 - Grammar-level statement parsing, semantic analysis, and byte-collection contracts,
   keeping language-specific behavior out of the shared parser and assembler.
-- OSASM orchestration of those stages, collecting `db` operands into a byte vector
-  in source order without publishing partial bytes on collection failure.
-- Width-checked `uint8_t` parsing built on the shared integer conversion utility.
+- OSASM orchestration of those stages, collecting data operands into a byte vector
+  in source order and the CPU's data byte order without publishing partial bytes
+  on collection failure.
+- Built-in raw binary output, with open/write/close failure diagnostics and a
+  successful assemble result only after the output file is closed successfully.
+- Width-checked byte, word, dword, and qword parsing built on the shared integer
+  conversion utility.
 - A shared semantic analyzer interface and KASM semantic analyzer implementation.
 - Shared `Option`/`Options` utilities and an `Assembler` framework interface.
 - Shared numeric conversion utilities and focused CTest coverage for lexer, parser,
@@ -50,7 +56,7 @@ complete assembler.
 The current data-only pipeline is:
 
 ```text
-source -> KASM lexing -> statements -> semantic checks -> db byte vector
+source -> KASM lexing -> statements -> semantic checks -> data bytes -> raw binary file
 ```
 
 Each comma-delimited `db` operand contributes one byte. For example,
@@ -68,20 +74,25 @@ produces these eight byte values:
 5, 255, 42, 1, 2, 3, 4, 5
 ```
 
-The collector currently accepts only `db` directives; labels, instructions, and
-other directives are rejected at this stage. Each operand must be a single integer
-token representing a value from 0 to 255. Expression evaluation is not yet
-connected to directive operands.
+The collector accepts `db`, `dw`, `dd`, and `dq` for unsigned 1-, 2-, 4-, and 8-byte
+values, plus optional `format` metadata that contributes no bytes. Labels,
+instructions, and other directives are rejected at this stage. Each data operand
+must be a single integer token within its directive's unsigned range. Expression
+evaluation is not yet connected to directive operands.
 
-Bytes currently remain local to `OsasmAssembler::assemble`; they are not returned,
-printed, or written to the requested output file. The assemble result remains
-unsuccessful even after valid byte collection, so the CLI still exits with code 1.
+`OsasmAssembler::assemble` writes the collected bytes to the specified output file
+in binary mode, replacing any existing contents. Validation and collection finish
+before the file is opened. File open, write, or close failures are reported as
+errors; the CLI exits with code 0 only after successful assembly and plugin cleanup.
+The byte vector is not returned in the assemble result. A failure during writing
+may leave a partial file; output replacement is not atomic.
 
 CPU plugins specify their default data byte order through the `Cpu` constructor
 and expose it through `endianness()`. The x86 plugin declares `Endianness::Little`.
-This is metadata for future multi-byte emission, not an instruction encoder.
+The collector uses this setting for multi-byte data emission; it is not an
+instruction encoder.
 Endianness does not change `db` output: operands always stay in source order.
-Future multi-byte values will need explicit target-endian serialization.
+`dw`, `dd`, and `dq` serialize each value in the selected CPU's data byte order.
 
 ## Project direction
 
@@ -95,6 +106,41 @@ CPU plugins will provide target-specific register and instruction information. T
 
 The next parser milestone is attaching parsed expression trees to statement operand
 groups. Instruction-specific semantic validation and IR lowering will follow.
+
+### Output formats
+
+Raw binary is the built-in output target: collected bytes are written directly
+to a file, without executable headers or container metadata. No external format
+plugin is needed.
+
+The assembler defaults to `raw` when no format is specified and accepts
+`format raw` in source. Unsupported formats are rejected before opening the
+output file. Its options API also accepts a `format` setting; an empty setting
+or a conflict with the source request is rejected. The CLI does not yet expose
+a format argument.
+
+An output-format plugin system is a longer-term design goal, separate from CPU
+and grammar plugins:
+
+```text
+source -> grammar -> validation -> encoding -> output-format plugin -> file
+```
+
+The grammar will expose an optional source format request. The assembler will
+resolve source, command-line, and default selection, then hand the prepared output
+to the selected format plugin for final layout and serialization. The plugin
+will report success or an error; overall assembly will succeed only after output
+is written successfully. Raw binary is the intended default when no format is
+requested.
+
+Raw binary needs only the emitted bytes. Future structured formats such as ELF
+and PE will also need sections, symbols, relocations, entry-point information,
+and target metadata. Their shared output model will be developed when those
+formats are introduced; format-specific loading and writing will not live in KASM.
+
+The `format testformat` collector test exercises only a placeholder directive and
+debug message; the assembler rejects that name for actual file output. No
+output-format plugins or structured-format writers exist yet.
 
 ## Build and test
 
@@ -132,6 +178,17 @@ It also checks that overflowing values, missing `dd`/`dq` operands, and unsuppor
 `dd`/`dq` expressions are rejected with an error without modifying the caller's
 output vector.
 
+A placeholder `format testformat` fixture checks the format debug message and
+verifies that the directive adds no bytes in either endian mode. This does not
+implement or validate a real output-file format.
+
+The `osasm_output_test` verifies exact raw file contents, default and explicit
+raw selection, output truncation, unsupported/conflicting formats, invalid input,
+and output-open failures. Error diagnostics from these deliberate failure cases
+are expected in a passing test run. The test creates its output in a temporary
+directory and removes that directory during cleanup; it does not leave a binary
+file to inspect.
+
 ### Debugging in VS Code on Windows
 
 The checked-in [launch configuration](.vscode/launch.json) uses the Microsoft C++
@@ -144,6 +201,22 @@ The configuration supplies the directive fixture, output path, and CPU-plugin
 path. A breakpoint at the final return in `OsasmAssembler::assemble` lets you
 inspect the collected `output` vector. Rebuild after code changes before starting
 another debug session.
+
+### Inspecting raw output in VS Code
+
+Let **Debug osasm (directives)** run to completion. It writes
+[`bin/Debug/output.bin`](bin/Debug/output.bin), which remains available after the
+debug session. In the Explorer, right-click the file and choose **Open With...**
+then **Hex Editor** (install the Microsoft Hex Editor extension if needed).
+
+For [`examples/directives.asm`](examples/directives.asm), the file contains exactly
+these eight bytes, with no headers:
+
+```text
+05 FF 2A 01 02 03 04 05
+```
+
+Running the same configuration again replaces the file's contents.
 
 ## Automated releases
 
@@ -214,9 +287,10 @@ osasm -i <input-file> -o <output-file> <cpu-plugin>
 
 Plugins exchange C++ objects with Vertex, so build them with a compatible compiler and runtime. Keep plugin-created objects alive only while their plugin is loaded. Bump a plugin kind's ABI version whenever its base class or plugin interface changes.
 
-The CPU and grammar plugin ABI versions are currently **2**. Rebuild older CPU
-plugins for the endianness member and older grammar plugins for the new
-grammar-level contracts; plugins declaring the previous ABI versions are rejected.
+The CPU plugin ABI version is **2** and the grammar plugin ABI version is **3**.
+Rebuild older CPU plugins for the endianness member and older grammar plugins for
+the grammar-level contracts and endianness-aware byte collection; plugins
+declaring previous ABI versions are rejected.
 
 ## Repository layout
 
@@ -228,7 +302,7 @@ targets/
   osasmcore/    osasm assembly orchestration and assembler integration
   cpus/         CPU plugins
   languages/    Language plugins and language frontends
-    kasmlang/   KASM lexer, parser, AST, statements, semantics, and db byte collection
+    kasmlang/   KASM lexer, parser, AST, statements, semantics, and data byte collection
 tests/          CTest-based tests
 examples/       Sample assembly input
 ```

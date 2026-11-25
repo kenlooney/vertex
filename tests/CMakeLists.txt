@@ -45,3 +45,7 @@ add_test(NAME osasm_semantic_test COMMAND osasm_semantic_test "${EXAMPLES_DIR}/d
 add_executable(osasm_bytes_test osasm_bytes_test.cpp)
 target_link_libraries(osasm_bytes_test kasmlang)
 add_test(NAME osasm_bytes_test COMMAND osasm_bytes_test)
+
+add_executable(osasm_output_test osasm_output_test.cpp)
+target_link_libraries(osasm_output_test osasmcore kasmlang)
+add_test(NAME osasm_output_test COMMAND osasm_output_test)

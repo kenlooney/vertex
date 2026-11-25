@@ -6,7 +6,7 @@
 #include "statement.h"
 #include <cstdint>
 #include <vector>
-
+#include "cpu.h"
 class Grammar
 {
 public:
@@ -29,6 +29,7 @@ public:
     virtual bool collect_bytes(
         const std::vector<std::unique_ptr<Statement>> &statements,
         std::vector<std::uint8_t> &output,
+        Endianness endianness,
         std::string &error) = 0;
 
 private:

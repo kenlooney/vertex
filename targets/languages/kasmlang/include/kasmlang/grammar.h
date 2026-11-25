@@ -34,6 +34,7 @@ public:
     bool collect_bytes(
         const std::vector<std::unique_ptr<Statement>> &statements,
         std::vector<std::uint8_t> &output,
+        Endianness endianness,
         std::string &error) override
     {
         if (!analyze(statements, error))
@@ -48,21 +49,106 @@ public:
             const auto *directive =
                 dynamic_cast<const DirectiveStatement *>(statement.get());
 
-            if (!directive || directive->name() != "db")
+            if (!directive || (
+                directive->name() != "db" && 
+                directive->name() != "dw" && 
+                directive->name() != "dd" &&
+                directive->name() != "dq"))
             {
-                error = "Byte collection currently supports only 'db' directives";
+                error = "Byte collection currently supports only 'db', 'dw', 'dd', and 'dq' directives";
                 return false;
             }
 
             for (const auto &operand : directive->operands())
             {
-                std::uint8_t byte = 0;
-                if (!parse_byte(operand.front().text, byte))
+                
+                if(directive->name() == "dq")
                 {
-                    error = "Invalid byte value: " + operand.front().text;
-                    return false;
+                    std::uint64_t qword = 0;
+                    if (!parse_qword(operand.front().text, qword))
+                    {
+                        error = "Invalid qword value: " + operand.front().text;
+                        return false;
+                    }
+                    if (endianness == Endianness::Little)
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>(qword & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 8) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 16) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 24) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 32) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 40) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 48) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 56) & 0xFF));
+                    }
+                    else
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 56) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 48) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 40) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 32) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 24) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 16) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 8) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>(qword & 0xFF));
+                    }
+                    continue;
                 }
-                bytes.push_back(byte);
+                if(directive->name() == "dd")
+                {
+                    std::uint32_t dword = 0;
+                    if (!parse_dword(operand.front().text, dword))
+                    {
+                        error = "Invalid dword value: " + operand.front().text;
+                        return false;
+                    }
+                    if (endianness == Endianness::Little)
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>(dword & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 8) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 16) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 24) & 0xFF));
+                    }
+                    else
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 24) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 16) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 8) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>(dword & 0xFF));
+                    }
+                    continue;
+                }
+                if (directive->name() == "dw")
+                {
+                    std::uint16_t word = 0;
+                    if (!parse_word(operand.front().text, word))
+                    {
+                        error = "Invalid word value: " + operand.front().text;
+                        return false;
+                    }
+                   
+                    if (endianness == Endianness::Little)
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>(word & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((word >> 8) & 0xFF));
+                    }
+                    else
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>((word >> 8) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>(word & 0xFF));
+                    }
+                    continue;
+                }
+                else if (directive->name() == "db")
+                {
+                    std::uint8_t byte = 0;
+                    if (!parse_byte(operand.front().text, byte))
+                    {
+                        error = "Invalid byte value: " + operand.front().text;
+                        return false;
+                    }
+                    bytes.push_back(byte);
+                }
             }
         }
 

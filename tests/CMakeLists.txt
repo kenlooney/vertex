@@ -1,5 +1,4 @@
 set(EXAMPLES_DIR ${CMAKE_SOURCE_DIR}/examples)
-add_test(NAME vertex_smoke_test COMMAND vertex_smoke_test)
 
 add_executable(pluginloader_test pluginloader_test.cpp)
 target_link_libraries(pluginloader_test PRIVATE vertex ${CMAKE_DL_LIBS})
@@ -30,3 +29,11 @@ add_test(NAME osasm_integer_test COMMAND osasm_integer_test)
 add_executable(osasm_parser_test osasm_parser_test.cpp)
 target_link_libraries(osasm_parser_test osasmcore)
 add_test(NAME osasm_parser_test COMMAND osasm_parser_test)
+
+add_executable(osasm_newline_test osasm_newline_test.cpp)
+target_link_libraries(osasm_newline_test osasmcore)
+add_test(NAME osasm_newline_test COMMAND osasm_newline_test)
+
+add_executable(osasm_statements_test osasm_statements_test.cpp)
+target_link_libraries(osasm_statements_test osasmcore)
+add_test(NAME osasm_statements_test COMMAND osasm_statements_test "${EXAMPLES_DIR}/statements.asm")

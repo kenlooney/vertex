@@ -132,8 +132,7 @@ jobs:
         run: |
           cmake -S . -B build-release-tests -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
           cmake --build build-release-tests --config Release
-          ctest --test-dir build-release-tests -C Release --output-on-failure \
-            -R "^(pluginloader_test|osasm_grammar_test|osasm_tokens_test|osasm_numbers_test|osasm_comments_test|osasm_integer_test)$"
+          ctest --test-dir build-release-tests -C Release --output-on-failure
 
       - name: Package
         shell: bash

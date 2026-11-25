@@ -1,6 +1,12 @@
 #include "osasm/parser.h"
+#include "osasm/statements/labels.h"
+#include "osasm/statements/instructions.h"
+
 #include "utils/integer.h"
 #include <limits>
+#include "vertex/common/token.h"
+#include <vector>
+
 
 std::size_t OsasmParser::add_node(Node node) {
     const std::size_t index = expression_.nodes.size();
@@ -173,6 +179,55 @@ bool evaluate(const Expression& tree, std::size_t index, std::uint64_t& value, s
             return false;
         }
         value = left % right;
+    }
+    return true;
+}
+
+bool OsasmParser::parse_statement(
+    std::unique_ptr<Statement>& statement,
+    std::string& error)
+{
+    if(at_end()) {
+        error = "Expected a statement";
+        return false;
+    }
+    const Token first = advance();
+    const std::size_t begin = first.span.begin;
+    std::size_t end = first.span.end;
+    std::vector<Token> operands;
+
+    while(!at_end() && peek().kind != "newline") {
+        const Token operand = advance();
+        operands.push_back(operand);
+        end = operand.span.end;
+    }
+    if(!at_end()) advance(); // Consume the newline token if present
+
+    if(first.kind == "label") {
+        statement = std::make_unique<LabelStatement>(Span::set(begin, end), first.text);
+    }
+    else if(first.kind == "identifier") {
+        statement = std::make_unique<InstructionStatement>(
+            Span::set(begin, end),
+            first.text,
+            std::move(operands));
+    }
+    else {
+        error = "Unexpected token at start of statement: " + first.text;
+        return false;
+    }
+
+    return true;
+}
+
+bool OsasmParser::parse_statements(std::vector<std::unique_ptr<Statement>>& output, std::string& error) {
+    while (!at_end()) {
+        while (!at_end() && peek().kind == "newline") advance();
+        if (at_end()) break;
+
+        std::unique_ptr<Statement> statement;
+        if (!parse_statement(statement, error)) return false;
+        output.push_back(std::move(statement));
     }
     return true;
 }

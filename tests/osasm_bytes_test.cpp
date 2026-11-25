@@ -7,80 +7,117 @@
 #include <vector>
 
 int main() {
-    const Source source{
-        "bytes.asm",
-        "db 0xAA\n"
-        "dw 0x1234, 0xFFFF\n"
-        "db 0xBB\n",
-    };
     KasmGrammar grammar;
-    grammar.set_source(source);
     std::vector<std::unique_ptr<Statement>> statements;
     std::string error;
-    if(!grammar.parse_statements(statements, error)) {
-        std::cerr << "Failed to parse byte fixture: " << error << '\n';
-        return 1;
-    }
-
     struct ByteCase {
         const char* name;
-        Endianness endianness;
-        std::vector<std::uint8_t> expected;
+        const char* source;
+        std::vector<std::uint8_t> little;
+        std::vector<std::uint8_t> big;
     };
     const ByteCase cases[] = {
-        {"Little endian", Endianness::Little, {0xAA, 0x34, 0x12, 0xFF, 0xFF, 0xBB}},
-        {"Big endian", Endianness::Big, {0xAA, 0x12, 0x34, 0xFF, 0xFF, 0xBB}},
+        {
+            "db/dw",
+            "db 0xAA\ndw 0x1234, 0xFFFF\ndb 0xBB\n",
+            {0xAA, 0x34, 0x12, 0xFF, 0xFF, 0xBB},
+            {0xAA, 0x12, 0x34, 0xFF, 0xFF, 0xBB},
+        },
+        {
+            "dd",
+            "db 0xAA\ndd 0x12345678, 0xFFFFFFFF, 0\ndb 0xBB\n",
+            {0xAA, 0x78, 0x56, 0x34, 0x12, 0xFF, 0xFF, 0xFF, 0xFF,
+             0, 0, 0, 0, 0xBB},
+            {0xAA, 0x12, 0x34, 0x56, 0x78, 0xFF, 0xFF, 0xFF, 0xFF,
+             0, 0, 0, 0, 0xBB},
+        },
+        {
+            "dq",
+            "db 0xAA\ndq 0x0123456789ABCDEF, 0xFFFFFFFFFFFFFFFF, 0\ndb 0xBB\n",
+            {0xAA, 0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01,
+             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+             0, 0, 0, 0, 0, 0, 0, 0, 0xBB},
+            {0xAA, 0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF,
+             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+             0, 0, 0, 0, 0, 0, 0, 0, 0xBB},
+        },
     };
-
+    const Endianness byte_orders[] = {Endianness::Little, Endianness::Big};
+    int failures = 0;
     for(const auto& test : cases) {
-        std::vector<std::uint8_t> output;
-        if(!grammar.collect_bytes(statements, output, test.endianness, error)) {
-            std::cerr << test.name << " collection failed: " << error << '\n';
-            return 1;
+        grammar.set_source(Source{"bytes.asm", test.source});
+        statements.clear();
+        if(!grammar.parse_statements(statements, error)) {
+            std::cerr << test.name << " parsing failed: " << error << '\n';
+            ++failures;
+            continue;
         }
-        if(output != test.expected) {
-            std::cerr << test.name << " produced unexpected bytes\n";
-            return 1;
+        for(const auto order : byte_orders) {
+            const char* order_name = order == Endianness::Little ? "Little" : "Big";
+            const auto& expected = order == Endianness::Little ? test.little : test.big;
+            std::vector<std::uint8_t> output;
+            if(!grammar.collect_bytes(statements, output, order, error)) {
+                std::cerr << test.name << ' ' << order_name
+                          << " collection failed: " << error << '\n';
+                ++failures;
+                continue;
+            }
+            if(output != expected) {
+                std::cerr << test.name << ' ' << order_name << " produced unexpected bytes\n";
+                ++failures;
+                continue;
+            }
+            std::cout << test.name << ' ' << order_name << " bytes:";
+            for(const auto byte : output) {
+                std::cout << ' ' << static_cast<unsigned>(byte);
+            }
+            std::cout << '\n';
         }
-
-        std::cout << test.name << " bytes:";
-        for(const auto byte : output) {
-            std::cout << ' ' << static_cast<unsigned>(byte);
-        }
-        std::cout << '\n';
     }
 
-    const Source overflow_source{
-        "word-overflow.asm",
-        "db 1\n"
-        "dw 65536\n",
+    const char* invalid_directives[] = {
+        "db 256",
+        "dw 65536",
+        "dd 4294967296",
+        "dq 18446744073709551616",
+        "dd",
+        "dq",
+        "dd 1 + 2",
+        "dq 1 + 2",
     };
-    grammar.set_source(overflow_source);
-    statements.clear();
-    if(!grammar.parse_statements(statements, error)) {
-        std::cerr << "Failed to parse word-overflow fixture: " << error << '\n';
-        return 1;
-    }
-
-    for(const auto& test : cases) {
-        const std::vector<std::uint8_t> original{0xCC};
-        std::vector<std::uint8_t> output = original;
+    for(const auto* directive : invalid_directives) {
+        grammar.set_source(Source{"invalid-bytes.asm", std::string("db 1\n") + directive + "\n"});
+        statements.clear();
+        if(!grammar.parse_statements(statements, error)) {
+            std::cerr << "Failed to parse invalid fixture " << directive << ": " << error << '\n';
+            ++failures;
+            continue;
+        }
         error.clear();
-        if(grammar.collect_bytes(statements, output, test.endianness, error)) {
-            std::cerr << test.name << " accepted an overflowing word\n";
-            return 1;
+        if(grammar.analyze(statements, error) || error.empty()) {
+            std::cerr << "Semantic analysis did not reject with an error: " << directive << '\n';
+            ++failures;
         }
-        if(error.empty()) {
-            std::cerr << test.name << " rejected overflow without an error\n";
-            return 1;
+        for(const auto order : byte_orders) {
+            const char* order_name = order == Endianness::Little ? "Little" : "Big";
+            const std::vector<std::uint8_t> original{0xCC};
+            std::vector<std::uint8_t> output = original;
+            error.clear();
+            if(grammar.collect_bytes(statements, output, order, error)) {
+                std::cerr << order_name << " accepted invalid directive: " << directive << '\n';
+                ++failures;
+                continue;
+            }
+            if(error.empty() || output != original) {
+                std::cerr << order_name << " rejection lacked an error or modified output: "
+                          << directive << '\n';
+                ++failures;
+                continue;
+            }
+            std::cout << order_name << " rejected " << directive
+                      << "; output unchanged: " << error << '\n';
         }
-        if(output != original) {
-            std::cerr << test.name << " modified output after overflow\n";
-            return 1;
-        }
-        std::cout << test.name
-                  << " rejected dw 65536; output unchanged: " << error << '\n';
     }
 
-    return 0;
+    return failures == 0 ? 0 : 1;
 }

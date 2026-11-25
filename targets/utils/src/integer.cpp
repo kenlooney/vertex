@@ -22,6 +22,18 @@ bool parse_word(const std::string& text, std::uint16_t& value) {
     return true;
 }
 
+bool parse_dword(const std::string& text, std::uint32_t& value) {
+    std::uint64_t temp;
+    if(!parse_integer(text, temp) || temp > std::numeric_limits<std::uint32_t>::max()) {
+        return false;
+    }
+    value = static_cast<std::uint32_t>(temp);
+    return true;
+}
+
+bool parse_qword(const std::string& text, std::uint64_t& value) {
+    return parse_integer(text, value);
+}
 bool parse_integer(const std::string& text, std::uint64_t& value) {
     if(text.empty()) {
         return false;

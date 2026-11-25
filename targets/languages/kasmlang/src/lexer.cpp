@@ -6,7 +6,9 @@
 #include <string>
 #include <string_view>
 
-constexpr std::string_view directives[] = {"db","dw"};
+constexpr std::string_view directives[] = {
+    "db","dw","dd","dq"
+};
 namespace
 {
     char lower_ascii(char ch)

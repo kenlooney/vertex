@@ -49,14 +49,75 @@ public:
             const auto *directive =
                 dynamic_cast<const DirectiveStatement *>(statement.get());
 
-            if (!directive || (directive->name() != "db" && directive->name() != "dw"))
+            if (!directive || (
+                directive->name() != "db" && 
+                directive->name() != "dw" && 
+                directive->name() != "dd" &&
+                directive->name() != "dq"))
             {
-                error = "Byte collection currently supports only 'db' and 'dw' directives";
+                error = "Byte collection currently supports only 'db', 'dw', 'dd', and 'dq' directives";
                 return false;
             }
 
             for (const auto &operand : directive->operands())
             {
+                
+                if(directive->name() == "dq")
+                {
+                    std::uint64_t qword = 0;
+                    if (!parse_qword(operand.front().text, qword))
+                    {
+                        error = "Invalid qword value: " + operand.front().text;
+                        return false;
+                    }
+                    if (endianness == Endianness::Little)
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>(qword & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 8) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 16) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 24) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 32) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 40) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 48) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 56) & 0xFF));
+                    }
+                    else
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 56) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 48) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 40) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 32) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 24) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 16) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((qword >> 8) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>(qword & 0xFF));
+                    }
+                    continue;
+                }
+                if(directive->name() == "dd")
+                {
+                    std::uint32_t dword = 0;
+                    if (!parse_dword(operand.front().text, dword))
+                    {
+                        error = "Invalid dword value: " + operand.front().text;
+                        return false;
+                    }
+                    if (endianness == Endianness::Little)
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>(dword & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 8) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 16) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 24) & 0xFF));
+                    }
+                    else
+                    {
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 24) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 16) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>((dword >> 8) & 0xFF));
+                        bytes.push_back(static_cast<std::uint8_t>(dword & 0xFF));
+                    }
+                    continue;
+                }
                 if (directive->name() == "dw")
                 {
                     std::uint16_t word = 0;

@@ -6,14 +6,16 @@ Vertex is an experimental framework for assembling and compiling through interch
 
 The project is under active development. The plugin loading foundation, KASM lexer,
 expression parser/AST, line-to-statement parser, semantic analysis, endian-aware
-`db`/`dw`/`dd`/`dq` data collection, basic x86 instruction encoding, and raw
-binary file output are in place. CPU plugins declare their default data endianness.
+`db`/`dw`/`dd`/`dq` data collection, basic x86 instruction encoding and decoding,
+and raw binary file output are in place. CPU plugins declare their default data endianness.
 Returning collected bytes and a broader intermediate representation remain future work.
 
 ## What exists today
 
 - Runtime-loaded CPU, language, and grammar plugin interfaces.
 - A CPU register file owned by its CPU instance.
+- An optional CPU decoder, with x86 support for single-byte `nop` and
+  `mov reg8, imm8`.
 - An `Endianness` enum (`Little`/`Big`) and a CPU default data byte-order accessor.
 - `Source`, `Token`, and `Span` types, plus shared lexer and parser foundations.
 - A shared `kasmlang` library (Ken's Assembly Language) with a `KasmGrammar` that
@@ -79,9 +81,10 @@ must be a single integer token within its directive's unsigned range. Expression
 evaluation is not yet connected to directive operands.
 
 With the x86 plugin, `mov` and `add` accept `al`, `cl`, `dl`, `bl`, `ah`, `ch`,
-`dh`, or `bh` and an immediate expression in the range `0`–`255`. `hlt` takes zero operands. For
-example, `mov al, 6 * 7`, `add al, 5`, and `hlt` emit `B0 2A 80 C0 05 F4` in
-source order. Data directives can appear between instructions. A bare operand
+`dh`, or `bh` and an immediate expression in the range `0`–`255`. Both `hlt`
+and `nop` take zero operands. For example, `mov al, 6 * 7`, `add al, 5`, and
+`hlt` emit `B0 2A 80 C0 05 F4` in source order. Data directives can appear
+between instructions. A bare operand
 such as `ah` names the register if the CPU defines it. Spell a hexadecimal
 immediate such as `0Ah` or `0xA` to avoid that ambiguity.
 
@@ -199,6 +202,31 @@ are expected in a passing test run. The test creates its output in a temporary
 directory and removes that directory during cleanup; it does not leave a binary
 file to inspect.
 
+### x86 decoding round trip
+
+The `osasm_x86_decode_test` assembles [examples/decode.asm](examples/decode.asm)
+and verifies that the raw output is `B0 01 B1 02 90`. It then decodes the
+binary through the loaded x86 plugin and prints each instruction.
+
+```asm
+mov al, 1
+mov cl, 2
+nop
+```
+
+To build the test and see its output on Windows, use the `windows-debug` build
+directory after configuring the project.
+
+```powershell
+cmake --build build/windows-debug --config Debug --target osasm_x86_decode_test
+ctest --test-dir build/windows-debug -C Debug -V -R '^osasm_x86_decode_test$'
+```
+
+The x86 decoder recognizes `90` and the `B0`–`B7` immediate `mov` opcodes. Each
+successful call writes one instruction as text and advances the byte offset.
+Unknown opcodes, truncated instructions, and end of input return `false` and
+preserve the offset and text. The standalone disassembly command is future work.
+
 ### Debugging in VS Code on Windows
 
 The checked-in [launch configuration](.vscode/launch.json) uses the Microsoft C++
@@ -279,7 +307,7 @@ public:
 class MyCpu : public Cpu {
 public:
     MyCpu()
-        : Cpu("mycpu", std::make_unique<MyRegisterFile>(), Endianness::Little) {}
+        : Cpu("mycpu", std::make_unique<MyRegisterFile>(), Endianness::Little, nullptr) {}
 
     void reset() override {}
 };
@@ -297,9 +325,13 @@ osasm -i <input-file> -o <output-file> <cpu-plugin>
 
 Plugins exchange C++ objects with Vertex, so build them with a compatible compiler and runtime. Keep plugin-created objects alive only while their plugin is loaded. Bump a plugin kind's ABI version whenever its base class or plugin interface changes.
 
-The CPU and grammar plugin ABI versions are both **4**. Rebuild older CPU plugins
-for the encoder interface and older grammar plugins for CPU-aware byte collection.
-Plugins declaring previous ABI versions are rejected.
+`Cpu::decoder()` returns the CPU's optional decoder. The x86 plugin creates its
+decoder on first access. Call `Decoder::decode()` with the CPU's register file,
+the input bytes, a byte offset, and a string for the decoded instruction.
+
+The CPU plugin ABI version is **5** and the grammar plugin ABI version is **4**.
+Rebuild older CPU plugins for the decoder interface and older grammar plugins for
+CPU-aware byte collection. Plugins declaring previous ABI versions are rejected.
 
 ## Repository layout
 

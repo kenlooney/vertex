@@ -3,7 +3,7 @@
 #include "vertex/plugins/plugin.h"
 
 // Bump when the CPU plugin interface changes, including its encoder interface.
-#define VERTEX_CPU_PLUGIN_ABI_VERSION 4
+#define VERTEX_CPU_PLUGIN_ABI_VERSION 5
 
 VERTEX_DECLARE_PLUGIN_KIND(Cpu, cpu, "CPU", VERTEX_CPU_PLUGIN_ABI_VERSION)
 

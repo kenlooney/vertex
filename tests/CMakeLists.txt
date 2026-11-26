@@ -55,3 +55,10 @@ add_test(NAME osasm_x86_encoding_test COMMAND ${CMAKE_COMMAND}
   "-DX86_PLUGIN=$<TARGET_FILE:x86_cpu>"
   "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/x86_encoding/$<CONFIG>"
   -P "${CMAKE_CURRENT_SOURCE_DIR}/osasm_x86_encoding_test.cmake")
+
+add_executable(osasm_x86_decode_test osasm_x86_decode_test.cpp)
+target_link_libraries(osasm_x86_decode_test PRIVATE osasmcore kasmlang)
+add_dependencies(osasm_x86_decode_test x86_cpu)
+add_test(NAME osasm_x86_decode_test COMMAND osasm_x86_decode_test
+  "${EXAMPLES_DIR}/decode.asm" "$<TARGET_FILE:x86_cpu>"
+  "${CMAKE_CURRENT_BINARY_DIR}/x86_decode_$<CONFIG>.bin")

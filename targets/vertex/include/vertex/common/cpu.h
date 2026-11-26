@@ -3,6 +3,7 @@
 #include <memory>
 #include "registers.h"
 #include "encoder.h"
+#include "decoder.h"
 enum class Endianness
 {
     Little,
@@ -16,13 +17,16 @@ class Cpu {
     std::string name() const { return name_; }
     RegisterFile* register_file() const { return register_file_.get(); }
     Encoder* encoder() const { return encoder_.get(); }
-
+    virtual Decoder* decoder() { return decoder_.get(); }
+    void set_decoder(std::unique_ptr<Decoder> decoder) { decoder_ = std::move(decoder); }
+    
     virtual void reset() = 0;
     Endianness endianness() const { return endianness_; }
     private:
     std::string name_;
     std::unique_ptr<RegisterFile> register_file_;
     std::unique_ptr<Encoder> encoder_;
+    std::unique_ptr<Decoder> decoder_;
 
     Endianness endianness_;
 };

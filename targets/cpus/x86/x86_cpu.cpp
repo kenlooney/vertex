@@ -6,6 +6,8 @@
 #include <string_view>
 #include <vector>
 #include "vertex/common/encoder.h"
+#include "vertex/common/decoder.h"
+#include <string>
 
 class X86Register : public Register
 {
@@ -68,20 +70,82 @@ public:
         addRegister(std::make_unique<X86Register>("di", 16, 7));
         addRegister(std::make_unique<X86Register>("edi", 32, 7));
         addRegister(std::make_unique<X86Register>("rdi", 64, 7));
+    }
+};
 
+class X86Decoder : public Decoder
+{
+public:
+    bool decode(const RegisterFile &registers, const std::vector<std::uint8_t> &bytes, std::size_t &offset, std::string &text) override
+    {
+        if (offset >= bytes.size())
+        {
+            return false;
+        }
+        std::size_t opcode = bytes[offset];
+        
+        if((opcode & 0xF8) == 0xB0) // MOV reg8, imm8 opcodes range from B0 to B7
+        {
+            return decode_mov_reg8_imm8(registers, bytes, offset, text);
+        }
+        
+        switch (opcode)
+        {
+        case 0x90: // NOP opcode
+            return decode_nop(registers, bytes, offset, text);
+        default:
+            return false;
+        }
+    }
+    bool decode_nop(const RegisterFile &registers, const std::vector<std::uint8_t> &bytes, std::size_t &offset, std::string &text)
+    {
+        if (offset < bytes.size() && bytes[offset] == 0x90) // NOP opcode
+        {
+            text = "nop";
+            ++offset;
+            return true;
+        }
+        return false;
+    }
+    bool decode_mov_reg8_imm8(const RegisterFile &registers, const std::vector<std::uint8_t> &bytes, std::size_t &offset, std::string &text)
+    {
+        if (offset >= bytes.size())
+        {
+            return false;
+        }
+        if (offset + 1 >= bytes.size())
+        {
+            return false;
+        }
+        const auto reg_code = bytes[offset] & 0x07;
+        const auto imm = bytes[offset + 1];
+        for (const auto *candidate : registers.getRegisters())
+        {
+            const auto *reg = dynamic_cast<const X86Register *>(candidate);
+            if (reg && reg->getWidth() == 8 && reg->group_code() == reg_code)
+            {
+                text = "mov " + reg->getName() + ", " + std::to_string(imm);
+                offset += 2;
+                return true;
+            }
+        }
+
+        return false;
     }
 };
 
 class X86Encoder : public Encoder
 {
 public:
-    bool encode(const RegisterFile& registers,
-                const std::string& mnemonic,
-                const std::vector<Operand>& operands,
-                std::vector<std::uint8_t>& bytes) override
+    bool encode(const RegisterFile &registers,
+                const std::string &mnemonic,
+                const std::vector<Operand> &operands,
+                std::vector<std::uint8_t> &bytes) override
     {
-        for (const auto& instruction : instructions_) {
-            if (mnemonic == instruction.mnemonic) {
+        for (const auto &instruction : instructions_)
+        {
+            if (mnemonic == instruction.mnemonic)
+            {
                 return instruction.encode(registers, operands, bytes);
             }
         }
@@ -89,26 +153,30 @@ public:
     }
 
 private:
-    struct RegisterImmediate8 {
+    struct RegisterImmediate8
+    {
         std::uint8_t register_code;
         std::uint8_t value;
     };
 
     static std::optional<RegisterImmediate8> get_register_immediate8(
-        const RegisterFile& registers, const std::vector<Operand>& operands)
+        const RegisterFile &registers, const std::vector<Operand> &operands)
     {
-        if (operands.size() != 2) {
+        if (operands.size() != 2)
+        {
             return std::nullopt;
         }
 
-        const auto* destination = std::get_if<RegisterOperand>(&operands[0]);
-        const auto* immediate = std::get_if<ImmediateOperand>(&operands[1]);
-        if (!destination || !immediate || immediate->value > 255) {
+        const auto *destination = std::get_if<RegisterOperand>(&operands[0]);
+        const auto *immediate = std::get_if<ImmediateOperand>(&operands[1]);
+        if (!destination || !immediate || immediate->value > 255)
+        {
             return std::nullopt;
         }
-        const auto* reg = dynamic_cast<const X86Register*>(
+        const auto *reg = dynamic_cast<const X86Register *>(
             registers.getRegisterByName(destination->name));
-        if (!reg || reg->getWidth() != 8 || reg->group_code() > 7) {
+        if (!reg || reg->getWidth() != 8 || reg->group_code() > 7)
+        {
             return std::nullopt;
         }
 
@@ -116,12 +184,13 @@ private:
                                   static_cast<std::uint8_t>(immediate->value)};
     }
 
-    static bool encode_mov_reg8_imm8(const RegisterFile& registers,
-                                     const std::vector<Operand>& operands,
-                                     std::vector<std::uint8_t>& bytes)
+    static bool encode_mov_reg8_imm8(const RegisterFile &registers,
+                                     const std::vector<Operand> &operands,
+                                     std::vector<std::uint8_t> &bytes)
     {
         const auto form = get_register_immediate8(registers, operands);
-        if (!form) {
+        if (!form)
+        {
             return false;
         }
         // B0 + rb puts the register code in the opcode.
@@ -130,12 +199,13 @@ private:
         return true;
     }
 
-    static bool encode_add_reg8_imm8(const RegisterFile& registers,
-                                     const std::vector<Operand>& operands,
-                                     std::vector<std::uint8_t>& bytes)
+    static bool encode_add_reg8_imm8(const RegisterFile &registers,
+                                     const std::vector<Operand> &operands,
+                                     std::vector<std::uint8_t> &bytes)
     {
         const auto form = get_register_immediate8(registers, operands);
-        if (!form) {
+        if (!form)
+        {
             return false;
         }
         // 80 /0 uses ModR/M with mod=11 (register), reg=000, and r/m=register code.
@@ -144,38 +214,40 @@ private:
         return true;
     }
 
-    static bool encode_hlt(const RegisterFile&, const std::vector<Operand>& operands,
-                           std::vector<std::uint8_t>& bytes)
+    static bool encode_hlt(const RegisterFile &, const std::vector<Operand> &operands,
+                           std::vector<std::uint8_t> &bytes)
     {
-        if (!operands.empty()) {
+        if (!operands.empty())
+        {
             return false;
         }
         bytes.push_back(0xF4);
         return true;
     }
 
-    static bool encode_nop(const RegisterFile&, const std::vector<Operand>& operands,
-                           std::vector<std::uint8_t>& bytes)
+    static bool encode_nop(const RegisterFile &, const std::vector<Operand> &operands,
+                           std::vector<std::uint8_t> &bytes)
     {
-        if (!operands.empty()) {
+        if (!operands.empty())
+        {
             return false;
         }
         bytes.push_back(0x90);
         return true;
     }
 
-    struct InstructionEncoding {
+    struct InstructionEncoding
+    {
         std::string_view mnemonic;
-        bool (*encode)(const RegisterFile&, const std::vector<Operand>&,
-                       std::vector<std::uint8_t>&);
+        bool (*encode)(const RegisterFile &, const std::vector<Operand> &,
+                       std::vector<std::uint8_t> &);
     };
 
     static constexpr InstructionEncoding instructions_[] = {
         {"mov", encode_mov_reg8_imm8},
         {"add", encode_add_reg8_imm8},
         {"hlt", encode_hlt},
-        {"nop", encode_nop}
-    };
+        {"nop", encode_nop}};
 };
 class X86Cpu : public Cpu
 {
@@ -184,6 +256,14 @@ public:
     void reset() override
     {
         // Reset logic for X86Cpu
+    }
+    Decoder *decoder() override
+    {
+        if (!Cpu::decoder())
+        {
+            set_decoder(std::make_unique<X86Decoder>());
+        }
+        return Cpu::decoder();
     }
 };
 VERTEX_REGISTER_CPU(X86Cpu)

@@ -191,6 +191,10 @@ bool KasmParser::parse_statement(
         return false;
     }
     const Token first = advance();
+    if (first.kind == "label") {
+        statement = std::make_unique<LabelStatement>(first.span, first.text);
+        return true;
+    }
     const std::size_t begin = first.span.begin;
     std::size_t end = first.span.end;
     std::vector<std::vector<Token>> operands;
@@ -218,10 +222,7 @@ bool KasmParser::parse_statement(
     }
     if(!at_end()) advance(); // Consume the newline token if present
 
-    if(first.kind == "label") {
-        statement = std::make_unique<LabelStatement>(Span::set(begin, end), first.text);
-    }
-    else if(first.kind == "identifier") {
+    if(first.kind == "identifier") {
         statement = std::make_unique<InstructionStatement>(
             Span::set(begin, end),
             first.text,

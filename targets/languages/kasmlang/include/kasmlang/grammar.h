@@ -6,7 +6,12 @@
 #include "kasmlang/semantic.h"
 #include "kasmlang/statements/statements.h"
 #include "utils/integer.h"
+#include <algorithm>
+#include <cctype>
 #include <iostream>
+#include <limits>
+#include "vertex/common/symbols.h"
+#include "vertex/common/fixup.h"
 
 class KasmGrammar : public Grammar
 {
@@ -64,6 +69,9 @@ private:
         const Cpu *cpu,
         std::string &error)
     {
+        SymbolTable symbols;
+        std::vector<Fixup> fixups;
+
         if (!analyze(statements, error))
         {
             return false;
@@ -73,9 +81,26 @@ private:
 
         for (const auto &statement : statements)
         {
+            if (const auto *label = dynamic_cast<const LabelStatement *>(statement.get()))
+            {
+                if (!symbols.addSymbol({SymbolType::Label, label->name(), bytes.size()}))
+                {
+                    error = "Duplicate label: " + label->name();
+                    return false;
+                }
+                continue;
+            }
+
             if (const auto *instruction = dynamic_cast<const InstructionStatement *>(statement.get()))
             {
-                if (!collect_instruction(*instruction, cpu, bytes, error))
+                if (instruction->name() == "jmp")
+                {
+                    if (!collect_jump(*instruction, cpu, bytes, fixups, error))
+                    {
+                        return false;
+                    }
+                }
+                else if (!collect_instruction(*instruction, cpu, bytes, error))
                 {
                     return false;
                 }
@@ -201,7 +226,88 @@ private:
             }
         }
 
+        if (!fixups.empty() && !resolve_jump_fixups(fixups, symbols, *cpu, bytes, error))
+        {
+            return false;
+        }
+
         output = std::move(bytes);
+        return true;
+    }
+
+    static bool collect_jump(const InstructionStatement &instruction,
+                             const Cpu *cpu,
+                             std::vector<std::uint8_t> &bytes,
+                             std::vector<Fixup> &fixups,
+                             std::string &error)
+    {
+        const auto &operands = instruction.operands();
+        if (operands.size() != 1 || operands.front().size() != 1)
+        {
+            error = "Expected one label operand for 'jmp'";
+            return false;
+        }
+        const auto &target = operands.front().front();
+        // A label name can also be a directive keyword or a suffix-style hex literal.
+        if (target.kind == "label" || target.text.empty() ||
+            !std::isalpha(static_cast<unsigned char>(target.text.front())))
+        {
+            error = "Expected one label operand for 'jmp'";
+            return false;
+        }
+
+        const auto start = bytes.size();
+        if (!cpu || !cpu->encoder() || !cpu->register_file() ||
+            !cpu->encoder()->encode(*cpu->register_file(), "jmp", {RelativeOperand{0}}, bytes) ||
+            bytes.size() == start)
+        {
+            error = "The selected CPU cannot encode a relative jump";
+            return false;
+        }
+        fixups.push_back({target.text, start, bytes.size(), instruction.span()});
+        return true;
+    }
+
+    static bool resolve_jump_fixups(const std::vector<Fixup> &fixups,
+                                    const SymbolTable &symbols,
+                                    const Cpu &cpu,
+                                    std::vector<std::uint8_t> &bytes,
+                                    std::string &error)
+    {
+        for (const auto &fixup : fixups)
+        {
+            const auto *target = symbols.getSymbol(fixup.target);
+            if (!target)
+            {
+                error = "Unknown label: " + fixup.target;
+                return false;
+            }
+
+            const bool backward = target->offset < fixup.next_offset;
+            const auto distance = backward ? fixup.next_offset - target->offset
+                                           : target->offset - fixup.next_offset;
+            if (distance > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+            {
+                error = "Relative jump out of range for label: " + fixup.target;
+                return false;
+            }
+            const auto magnitude = static_cast<std::int64_t>(distance);
+            const auto displacement = backward ? -magnitude : magnitude;
+
+            std::vector<std::uint8_t> encoded;
+            if (!cpu.encoder()->encode(*cpu.register_file(), "jmp", {RelativeOperand{displacement}}, encoded))
+            {
+                error = "Relative jump out of range for label: " + fixup.target;
+                return false;
+            }
+            if (encoded.size() != fixup.next_offset - fixup.instruction_offset)
+            {
+                error = "Relative jump changed size for label: " + fixup.target;
+                return false;
+            }
+
+            std::copy(encoded.begin(), encoded.end(), bytes.data() + fixup.instruction_offset);
+        }
         return true;
     }
 

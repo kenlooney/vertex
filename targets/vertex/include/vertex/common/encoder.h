@@ -13,7 +13,11 @@ struct ImmediateOperand {
     std::uint64_t value;
 };
 
-using Operand = std::variant<RegisterOperand, ImmediateOperand>;
+struct RelativeOperand {
+    std::int64_t displacement;
+};
+
+using Operand = std::variant<RegisterOperand, ImmediateOperand, RelativeOperand>;
 
 class Encoder {
 public:

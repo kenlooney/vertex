@@ -14,8 +14,8 @@ Returning collected bytes and a broader intermediate representation remain futur
 
 - Runtime-loaded CPU, language, and grammar plugin interfaces.
 - A CPU register file owned by its CPU instance.
-- An optional CPU decoder, with x86 support for single-byte `nop` and
-  `mov reg8, imm8`.
+- An optional CPU decoder, with x86 support for single-byte `nop`,
+  `mov reg8, imm8`, and short relative jumps.
 - An `Endianness` enum (`Little`/`Big`) and a CPU default data byte-order accessor.
 - `Source`, `Token`, and `Span` types, plus shared lexer and parser foundations.
 - A shared `kasmlang` library (Ken's Assembly Language) with a `KasmGrammar` that
@@ -90,8 +90,7 @@ immediate such as `0Ah` or `0xA` to avoid that ambiguity.
 
 KASM converts each instruction's operands to register names or evaluated
 immediates. `X86Encoder::encode` looks up the mnemonic in its table and calls a
-helper that validates the operand form and writes its bytes. Labels and further
-instruction forms remain future work.
+helper that validates the operand form and writes its bytes.
 
 `OsasmAssembler::assemble` writes the collected bytes to the specified output file
 in binary mode, replacing any existing contents. Validation and collection finish
@@ -105,6 +104,85 @@ and expose it through `endianness()`. The x86 plugin declares `Endianness::Littl
 The collector uses this setting for multi-byte data emission.
 Endianness does not change `db` output: operands always stay in source order.
 `dw`, `dd`, and `dq` serialize each value in the selected CPU's data byte order.
+
+## Short jumps and fixups
+
+A label records the current output byte offset and emits zero bytes. It can
+appear on its own line or before a statement. The x86 plugin assembles
+`jmp label` as `EB` followed by a signed 8-bit displacement.
+
+1. `collect_jump()` asks the CPU encoder for `jmp` with `RelativeOperand{0}`.
+   On x86 this appends the two-byte placeholder `EB 00`. The collector saves
+   its start and end offsets from the byte buffer in a `Fixup`.
+2. After collecting all statements, `resolve_jump_fixups()` looks up each
+   target in the symbol table and computes `target.offset - fixup.next_offset`.
+   The resolver calculates the magnitude before applying the sign so a backward
+   jump cannot underflow the unsigned offsets.
+3. The x86 helper checks the signed range `-128` through `127` and encodes the
+   final jump. The collector verifies that the result is the same length as the
+   placeholder before copying it into the buffer. Malformed jumps, duplicate
+   or unknown labels, and out-of-range targets fail before `osasm` opens the
+   output file.
+
+The KASM collector owns the symbol table and fixup list for the current
+assembly. The x86 encoder helper owns the opcode and displacement range.
+[KASM collector](targets/languages/kasmlang/include/kasmlang/grammar.h) ·
+[x86 encoder](targets/cpus/x86/x86_cpu.cpp)
+
+| `Fixup` field | Meaning |
+| --- | --- |
+| `target` | Label name to look up after layout |
+| `instruction_offset` | First byte of the placeholder and where to write the final encoding |
+| `next_offset` | First byte after the instruction and the base for the displacement |
+| `source_span` | Source range of the jump statement, available for diagnostics |
+| `encoder_key` | Encoder table entry for the selected form. Defaults to `jmp` |
+
+For example, this program emits `EB 01 90 EB FB`.
+
+```asm
+start:
+    jmp done
+    nop
+done:
+    jmp start
+```
+
+The first jump ends at byte `2` and reaches `done` at byte `3`, so its
+displacement is `+1`. The second ends at byte `5` and reaches `start` at byte
+`0`, so its displacement is `-5`, encoded as `FB`.
+
+### Chapter 31 checkpoint
+
+The x86 encoder table now has a `jmp near` entry for the **16-bit** form. The
+helper emits `E9` followed by a signed two-byte displacement, low byte first.
+Direct plugin checks passed for `+0x1234` → `E9 34 12`, both signed limits, and
+out-of-range rejection. KASM currently collects and resolves the short form.
+
+1. In `resolve_jump_fixups()`, pass `fixup.encoder_key` to the encoder in place
+   of the literal `"jmp"`.
+2. In `collect_jump()`, accept one label token for `jmp label` or two tokens in
+   the same operand group for `jmp near label`. Choose the encoder key before
+   emitting the placeholder, then save that same key in the fixup. Use the
+   actual byte-buffer size after emission for `next_offset`.
+3. Test a mixed-form program. In the example above, change the first jump to
+   `jmp near done`. The expected bytes are `E9 01 00 90 EB FA`. Keep testing
+   the short form, missing labels, and both near displacement limits.
+
+### Adding another jump form
+
+- Keep the mnemonic or selected encoding form with the fixup record once more
+  than one branch form uses it. The current resolver uses `jmp` for every fixup.
+  [Fixup definition](targets/vertex/include/vertex/common/fixup.h)
+- Use the same encoding form for the placeholder and the final jump. For a
+  fixed-size form, let the encoder determine the length during collection and
+  keep the range check with that form's helper.
+- If the assembler will choose between short and near jumps, allow for layout
+  changes before patching. Growing a jump shifts later labels and fixups, so
+  recompute offsets and displacements until the instruction sizes are settled.
+- Extend the encoding test with exact forward and backward bytes, both
+  displacement limits, and a case just beyond each limit. The existing test
+  also checks that failed assembly preserves an earlier output file.
+  [x86 encoding test](tests/osasm_x86_encoding_test.cmake)
 
 ## Project direction
 
@@ -222,10 +300,12 @@ cmake --build build/windows-debug --config Debug --target osasm_x86_decode_test
 ctest --test-dir build/windows-debug -C Debug -V -R '^osasm_x86_decode_test$'
 ```
 
-The x86 decoder recognizes `90` and the `B0`–`B7` immediate `mov` opcodes. Each
-successful call writes one instruction as text and advances the byte offset.
-Unknown opcodes, truncated instructions, and end of input return `false` and
-preserve the offset and text. The standalone disassembly command is future work.
+The x86 decoder recognizes `90` (`nop`), `B0`–`B7` (`mov reg8, imm8`), and
+`EB` (short jump). For a short jump, it prints the signed displacement, such
+as `jmp relative -5`. Each successful call writes one instruction as text and
+advances the byte offset. Unknown opcodes, truncated instructions, and end of
+input return `false` and preserve the offset and text. The standalone
+disassembly command is future work.
 
 ### Debugging in VS Code on Windows
 
@@ -329,8 +409,8 @@ Plugins exchange C++ objects with Vertex, so build them with a compatible compil
 decoder on first access. Call `Decoder::decode()` with the CPU's register file,
 the input bytes, a byte offset, and a string for the decoded instruction.
 
-The CPU plugin ABI version is **5** and the grammar plugin ABI version is **4**.
-Rebuild older CPU plugins for the decoder interface and older grammar plugins for
+The CPU plugin ABI version is **6** and the grammar plugin ABI version is **4**.
+Rebuild older CPU plugins for relative operands and older grammar plugins for
 CPU-aware byte collection. Plugins declaring previous ABI versions are rejected.
 
 ## Repository layout

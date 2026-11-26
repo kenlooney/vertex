@@ -32,6 +32,14 @@ public:
         std::vector<std::uint8_t> &output,
         Endianness endianness,
         std::string &error) = 0;
+    virtual bool collect_bytes(
+        const std::vector<std::unique_ptr<Statement>> &statements,
+        std::vector<std::uint8_t> &output,
+        const Cpu &cpu,
+        std::string &error)
+    {
+        return collect_bytes(statements, output, cpu.endianness(), error);
+    }
 
 private:
     std::string name_;

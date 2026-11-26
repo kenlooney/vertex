@@ -49,3 +49,9 @@ add_test(NAME osasm_bytes_test COMMAND osasm_bytes_test)
 add_executable(osasm_output_test osasm_output_test.cpp)
 target_link_libraries(osasm_output_test osasmcore kasmlang)
 add_test(NAME osasm_output_test COMMAND osasm_output_test)
+
+add_test(NAME osasm_x86_encoding_test COMMAND ${CMAKE_COMMAND}
+  "-DOSASM=$<TARGET_FILE:osasm>"
+  "-DX86_PLUGIN=$<TARGET_FILE:x86_cpu>"
+  "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/x86_encoding/$<CONFIG>"
+  -P "${CMAKE_CURRENT_SOURCE_DIR}/osasm_x86_encoding_test.cmake")

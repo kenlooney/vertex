@@ -6,10 +6,9 @@ Vertex is an experimental framework for assembling and compiling through interch
 
 The project is under active development. The plugin loading foundation, KASM lexer,
 expression parser/AST, line-to-statement parser, semantic analysis, endian-aware
-`db`/`dw`/`dd`/`dq` data collection, and raw binary file output are in place.
-CPU plugins declare their default data endianness.
-Returning collected bytes, instruction-specific operand
-validation, intermediate representations, and instruction encoding remain unfinished.
+`db`/`dw`/`dd`/`dq` data collection, basic x86 instruction encoding, and raw
+binary file output are in place. CPU plugins declare their default data endianness.
+Returning collected bytes and a broader intermediate representation remain future work.
 
 ## What exists today
 
@@ -53,10 +52,10 @@ complete assembler.
 
 ## Byte collection and endianness
 
-The current data-only pipeline is:
+The byte collection pipeline is:
 
 ```text
-source -> KASM lexing -> statements -> semantic checks -> data bytes -> raw binary file
+source -> KASM lexing -> statements -> semantic checks -> data and instruction bytes -> raw binary file
 ```
 
 Each comma-delimited `db` operand contributes one byte. For example,
@@ -75,10 +74,21 @@ produces these eight byte values:
 ```
 
 The collector accepts `db`, `dw`, `dd`, and `dq` for unsigned 1-, 2-, 4-, and 8-byte
-values, plus optional `format` metadata that contributes no bytes. Labels,
-instructions, and other directives are rejected at this stage. Each data operand
+values, plus optional `format` metadata that contributes no bytes. Each data operand
 must be a single integer token within its directive's unsigned range. Expression
 evaluation is not yet connected to directive operands.
+
+With the x86 plugin, `mov` and `add` accept `al`, `cl`, `dl`, `bl`, `ah`, `ch`,
+`dh`, or `bh` and an immediate expression in the range `0`–`255`. `hlt` takes zero operands. For
+example, `mov al, 6 * 7`, `add al, 5`, and `hlt` emit `B0 2A 80 C0 05 F4` in
+source order. Data directives can appear between instructions. A bare operand
+such as `ah` names the register if the CPU defines it. Spell a hexadecimal
+immediate such as `0Ah` or `0xA` to avoid that ambiguity.
+
+KASM converts each instruction's operands to register names or evaluated
+immediates. `X86Encoder::encode` looks up the mnemonic in its table and calls a
+helper that validates the operand form and writes its bytes. Labels and further
+instruction forms remain future work.
 
 `OsasmAssembler::assemble` writes the collected bytes to the specified output file
 in binary mode, replacing any existing contents. Validation and collection finish
@@ -89,8 +99,7 @@ may leave a partial file; output replacement is not atomic.
 
 CPU plugins specify their default data byte order through the `Cpu` constructor
 and expose it through `endianness()`. The x86 plugin declares `Endianness::Little`.
-The collector uses this setting for multi-byte data emission; it is not an
-instruction encoder.
+The collector uses this setting for multi-byte data emission.
 Endianness does not change `db` output: operands always stay in source order.
 `dw`, `dd`, and `dq` serialize each value in the selected CPU's data byte order.
 
@@ -105,7 +114,8 @@ assembly source -> lexer -> parser -> AST -> IR -> CPU-specific output
 CPU plugins will provide target-specific register and instruction information. The grammar and frontend will define the assembly language and translate it into an intermediate representation before handing off target-specific work.
 
 The next parser milestone is attaching parsed expression trees to statement operand
-groups. Instruction-specific semantic validation and IR lowering will follow.
+groups. The current instruction path parses and evaluates immediate expressions
+during byte collection.
 
 ### Output formats
 
@@ -287,10 +297,9 @@ osasm -i <input-file> -o <output-file> <cpu-plugin>
 
 Plugins exchange C++ objects with Vertex, so build them with a compatible compiler and runtime. Keep plugin-created objects alive only while their plugin is loaded. Bump a plugin kind's ABI version whenever its base class or plugin interface changes.
 
-The CPU plugin ABI version is **2** and the grammar plugin ABI version is **3**.
-Rebuild older CPU plugins for the endianness member and older grammar plugins for
-the grammar-level contracts and endianness-aware byte collection; plugins
-declaring previous ABI versions are rejected.
+The CPU and grammar plugin ABI versions are both **4**. Rebuild older CPU plugins
+for the encoder interface and older grammar plugins for CPU-aware byte collection.
+Plugins declaring previous ABI versions are rejected.
 
 ## Repository layout
 

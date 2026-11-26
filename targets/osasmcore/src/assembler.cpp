@@ -92,7 +92,7 @@ std::unique_ptr<OptionResult> OsasmAssembler::assemble(
         return result;
     }
 
-    if (!grammar()->collect_bytes(statements, output, cpu()->endianness(), error))
+    if (!grammar()->collect_bytes(statements, output, *cpu(), error))
     {
         OsasmDiagnostic diag(source.path, error, Span{0, 0});
         diag.report();

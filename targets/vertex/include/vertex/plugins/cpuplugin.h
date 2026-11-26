@@ -2,8 +2,8 @@
 #include "vertex/common/cpu.h"
 #include "vertex/plugins/plugin.h"
 
-// Bump whenever Cpu's layout or virtual interface changes so stale plugins are rejected.
-#define VERTEX_CPU_PLUGIN_ABI_VERSION 2
+// Bump when the CPU plugin interface changes, including its encoder interface.
+#define VERTEX_CPU_PLUGIN_ABI_VERSION 4
 
 VERTEX_DECLARE_PLUGIN_KIND(Cpu, cpu, "CPU", VERTEX_CPU_PLUGIN_ABI_VERSION)
 

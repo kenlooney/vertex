@@ -1,5 +1,6 @@
 #include "kasmlang/grammar.h"
 #include "osasm/assembler.h"
+#include "vertex/common/encoder.h"
 
 #include <chrono>
 #include <cstdint>
@@ -11,9 +12,16 @@
 #include <string>
 #include <vector>
 
+class OutputTestEncoder : public Encoder {
+public:
+    bool encode(const RegisterFile&, const std::string&, const std::vector<Operand>&,
+                std::vector<std::uint8_t>&) override {
+        return false;
+    }
+};
 class OutputTestCpu : public Cpu {
 public:
-    OutputTestCpu() : Cpu("output-test", std::make_unique<RegisterFile>(), Endianness::Little) {}
+    OutputTestCpu() : Cpu("output-test", std::make_unique<RegisterFile>(), Endianness::Little, std::make_unique<OutputTestEncoder>()) {}
     void reset() override {}
 };
 

@@ -44,6 +44,26 @@ public:
         Endianness endianness,
         std::string &error) override
     {
+        return collect_bytes(statements, output, endianness, nullptr, error);
+    }
+
+    bool collect_bytes(
+        const std::vector<std::unique_ptr<Statement>> &statements,
+        std::vector<std::uint8_t> &output,
+        const Cpu &cpu,
+        std::string &error) override
+    {
+        return collect_bytes(statements, output, cpu.endianness(), &cpu, error);
+    }
+
+private:
+    bool collect_bytes(
+        const std::vector<std::unique_ptr<Statement>> &statements,
+        std::vector<std::uint8_t> &output,
+        Endianness endianness,
+        const Cpu *cpu,
+        std::string &error)
+    {
         if (!analyze(statements, error))
         {
             return false;
@@ -53,6 +73,15 @@ public:
 
         for (const auto &statement : statements)
         {
+            if (const auto *instruction = dynamic_cast<const InstructionStatement *>(statement.get()))
+            {
+                if (!collect_instruction(*instruction, cpu, bytes, error))
+                {
+                    return false;
+                }
+                continue;
+            }
+
             const auto *directive =
                 dynamic_cast<const DirectiveStatement *>(statement.get());
 
@@ -63,7 +92,7 @@ public:
                 directive->name() != "dq" &&
                 directive->name() != "format"))
             {
-                error = "Byte collection currently supports only 'db', 'dw', 'dd', 'dq', and 'format' directives";
+                error = "Unsupported statement for byte collection";
                 return false;
             }
 
@@ -173,6 +202,49 @@ public:
         }
 
         output = std::move(bytes);
+        return true;
+    }
+
+    static bool collect_instruction(const InstructionStatement &instruction,
+                                    const Cpu *cpu,
+                                    std::vector<std::uint8_t> &bytes,
+                                    std::string &error)
+    {
+        if (!cpu || !cpu->encoder() || !cpu->register_file())
+        {
+            error = "No CPU encoder and register file available for '" + instruction.name() + "'";
+            return false;
+        }
+
+        const RegisterFile &registers = *cpu->register_file();
+        std::vector<Operand> operands;
+        operands.reserve(instruction.operands().size());
+        for (const auto &tokens : instruction.operands())
+        {
+            // A bare register name can also look like a suffix-style hex literal (ah, bh, ch, dh).
+            if (tokens.size() == 1 &&
+                (tokens.front().kind == "identifier" ||
+                 (tokens.front().kind == "integer" && registers.getRegisterByName(tokens.front().text))))
+            {
+                operands.emplace_back(RegisterOperand{tokens.front().text});
+                continue;
+            }
+
+            Expression expression;
+            std::uint64_t value = 0;
+            if (!parse_expression(tokens, expression, error) ||
+                !evaluate(expression, expression.root, value, error))
+            {
+                return false;
+            }
+            operands.emplace_back(ImmediateOperand{value});
+        }
+
+        if (!cpu->encoder()->encode(registers, instruction.name(), operands, bytes))
+        {
+            error = "Unsupported instruction or operands: " + instruction.name();
+            return false;
+        }
         return true;
     }
 

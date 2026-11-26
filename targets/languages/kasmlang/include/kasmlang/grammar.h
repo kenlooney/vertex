@@ -6,6 +6,7 @@
 #include "kasmlang/semantic.h"
 #include "kasmlang/statements/statements.h"
 #include "utils/integer.h"
+#include <iostream>
 
 class KasmGrammar : public Grammar
 {
@@ -28,14 +29,40 @@ public:
         const std::vector<std::unique_ptr<Statement>> &statements,
         std::string &error) override
     {
+        set_format("");
         KasmSemanticAnalyzer analyzer;
-        return analyzer.analyze(statements, error);
+        if (!analyzer.analyze(statements, error))
+        {
+            return false;
+        }
+        set_format(analyzer.format());
+        return true;
     }
     bool collect_bytes(
         const std::vector<std::unique_ptr<Statement>> &statements,
         std::vector<std::uint8_t> &output,
         Endianness endianness,
         std::string &error) override
+    {
+        return collect_bytes(statements, output, endianness, nullptr, error);
+    }
+
+    bool collect_bytes(
+        const std::vector<std::unique_ptr<Statement>> &statements,
+        std::vector<std::uint8_t> &output,
+        const Cpu &cpu,
+        std::string &error) override
+    {
+        return collect_bytes(statements, output, cpu.endianness(), &cpu, error);
+    }
+
+private:
+    bool collect_bytes(
+        const std::vector<std::unique_ptr<Statement>> &statements,
+        std::vector<std::uint8_t> &output,
+        Endianness endianness,
+        const Cpu *cpu,
+        std::string &error)
     {
         if (!analyze(statements, error))
         {
@@ -46,6 +73,15 @@ public:
 
         for (const auto &statement : statements)
         {
+            if (const auto *instruction = dynamic_cast<const InstructionStatement *>(statement.get()))
+            {
+                if (!collect_instruction(*instruction, cpu, bytes, error))
+                {
+                    return false;
+                }
+                continue;
+            }
+
             const auto *directive =
                 dynamic_cast<const DirectiveStatement *>(statement.get());
 
@@ -53,9 +89,10 @@ public:
                 directive->name() != "db" && 
                 directive->name() != "dw" && 
                 directive->name() != "dd" &&
-                directive->name() != "dq"))
+                directive->name() != "dq" &&
+                directive->name() != "format"))
             {
-                error = "Byte collection currently supports only 'db', 'dw', 'dd', and 'dq' directives";
+                error = "Unsupported statement for byte collection";
                 return false;
             }
 
@@ -149,10 +186,65 @@ public:
                     }
                     bytes.push_back(byte);
                 }
+                else if (directive->name() == "format")
+                {
+                    // No bytes are generated for the format directive
+                    if (operand.empty())
+                    {
+                        error = "The 'format' directive requires a format specifier.";
+                        return false;
+                    }
+                    std::string format = operand.front().text;
+                    // For now just print the format specifier
+                    std::cout << "Output Format: " << format << std::endl;
+                }
             }
         }
 
         output = std::move(bytes);
+        return true;
+    }
+
+    static bool collect_instruction(const InstructionStatement &instruction,
+                                    const Cpu *cpu,
+                                    std::vector<std::uint8_t> &bytes,
+                                    std::string &error)
+    {
+        if (!cpu || !cpu->encoder() || !cpu->register_file())
+        {
+            error = "No CPU encoder and register file available for '" + instruction.name() + "'";
+            return false;
+        }
+
+        const RegisterFile &registers = *cpu->register_file();
+        std::vector<Operand> operands;
+        operands.reserve(instruction.operands().size());
+        for (const auto &tokens : instruction.operands())
+        {
+            // A bare register name can also look like a suffix-style hex literal (ah, bh, ch, dh).
+            if (tokens.size() == 1 &&
+                (tokens.front().kind == "identifier" ||
+                 (tokens.front().kind == "integer" && registers.getRegisterByName(tokens.front().text))))
+            {
+                operands.emplace_back(RegisterOperand{tokens.front().text});
+                continue;
+            }
+
+            Expression expression;
+            std::uint64_t value = 0;
+            if (!parse_expression(tokens, expression, error) ||
+                !evaluate(expression, expression.root, value, error))
+            {
+                return false;
+            }
+            operands.emplace_back(ImmediateOperand{value});
+        }
+
+        if (!cpu->encoder()->encode(registers, instruction.name(), operands, bytes))
+        {
+            error = "Unsupported instruction or operands: " + instruction.name();
+            return false;
+        }
         return true;
     }
 

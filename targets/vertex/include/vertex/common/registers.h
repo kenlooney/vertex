@@ -22,18 +22,20 @@
 
 class Register {
 public:
-    explicit Register(std::string name) :  name_(std::move(name)), value_(0) {}
+    explicit Register(std::string name, std::size_t width = 0) :  name_(std::move(name)), value_(0), width_(width) {}
     virtual ~Register() = default;
     bool operator==(const Register& other) const { return name_ == other.name_; }
     const std::string& getName() const { return name_; }
     virtual bool matchesName(const std::string& name) const { return name_ == name; }
     std::uint64_t getValue() const { return value_; }
     void setValue(std::uint64_t value) { value_ = value; }
+    std::size_t getWidth() const { return width_; }
     
  
 private:
     std::string name_;
     std::uint64_t value_;
+    std::size_t width_;
  
 };
 

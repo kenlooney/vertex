@@ -15,6 +15,7 @@ public:
     std::string name() const { return name_; }
     void set_source(const Source &source)
     {
+        format_.clear();
         lexer_ = make_lexer(source);
         parser_ = make_parser(lexer_->tokenize());
     }
@@ -31,13 +32,25 @@ public:
         std::vector<std::uint8_t> &output,
         Endianness endianness,
         std::string &error) = 0;
+    virtual bool collect_bytes(
+        const std::vector<std::unique_ptr<Statement>> &statements,
+        std::vector<std::uint8_t> &output,
+        const Cpu &cpu,
+        std::string &error)
+    {
+        return collect_bytes(statements, output, cpu.endianness(), error);
+    }
 
 private:
     std::string name_;
+    std::string format_;
+public:
+    const std::string& format() const { return format_; }
     std::unique_ptr<Lexer> lexer_;
     std::unique_ptr<Parser> parser_;
 
 protected:
+    void set_format(std::string format) { format_ = std::move(format); }
     virtual std::unique_ptr<Lexer> make_lexer(const Source &source) = 0;
     virtual std::unique_ptr<Parser> make_parser(std::vector<Token> tokens) = 0;
 };

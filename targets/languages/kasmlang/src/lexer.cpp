@@ -7,9 +7,9 @@
 #include <string_view>
 
 constexpr std::string_view directives[] = {
-    "db","dw","dd","dq",
-    "format"
-};
+    "db", "dw", "dd", "dq",
+    "format",
+    "repeat"};
 namespace
 {
     char lower_ascii(char ch)
@@ -166,9 +166,7 @@ std::vector<Token> KasmLexer::tokenize()
         // Comment: starts with a semicolon and goes until the end of the line
         if (ch == ';')
         {
-            while (cursor < text.size()
-                   && text[cursor] != '\r'
-                   && text[cursor] != '\n')
+            while (cursor < text.size() && text[cursor] != '\r' && text[cursor] != '\n')
             {
                 ++cursor;
             }
@@ -178,9 +176,7 @@ std::vector<Token> KasmLexer::tokenize()
         if (ch == '/' && cursor + 1 < text.size() && text[cursor + 1] == '/')
         {
             cursor += 2;
-            while (cursor < text.size()
-                   && text[cursor] != '\r'
-                   && text[cursor] != '\n')
+            while (cursor < text.size() && text[cursor] != '\r' && text[cursor] != '\n')
             {
                 ++cursor;
             }
@@ -236,11 +232,27 @@ std::vector<Token> KasmLexer::tokenize()
             if (std::find(
                     std::begin(directives),
                     std::end(directives),
-                    identifier) != std::end(directives)) {
+                    identifier) != std::end(directives))
+            {
                 add_token("directive", identifier, Span::set(begin, cursor));
                 continue;
             }
             add_token("identifier", identifier, Span::set(begin, cursor));
+            continue;
+        }
+        
+        //TODO: Switch these over to more meaning word-like tokens rather than punctuation
+        if (ch == '$' && cursor + 1 < text.size() && text[cursor + 1] == '$')
+        {
+            cursor += 2;
+            add_token("dollardollar", text.substr(begin, cursor - begin),
+                      Span::set(begin, cursor));
+            continue;
+        }
+        if (ch == '$')
+        {
+            add_token("dollar", text.substr(begin, 1), Span::set(begin, cursor + 1));
+            ++cursor;
             continue;
         }
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(vertex VERSION 0.9.0 LANGUAGES C CXX)
+project(vertex VERSION 0.10.0 LANGUAGES C CXX)
 
 
 set(CMAKE_C_STANDARD 11)

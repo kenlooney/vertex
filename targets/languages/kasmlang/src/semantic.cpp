@@ -1,4 +1,5 @@
 #include "kasmlang/semantic.h"
+#include "kasmlang/parser.h"
 #include "kasmlang/statements/statements.h"
 #include "utils/integer.h"
 
@@ -137,6 +138,32 @@ bool KasmSemanticAnalyzer::analyze(
 
                 std::string format = operands.front().front().text;
                 this->format_ = format;
+            }
+            if (dirStmt->name() == "repeat")
+            {
+                const auto &operands = dirStmt->operands();
+                if (operands.size() != 1 || operands.front().size() < 3)
+                {
+                    error = "Expected 'repeat <count> <data directive> <value>'";
+                    return false;
+                }
+
+                const auto &tokens = operands.front();
+                const auto data = tokens.end() - 2;
+                if (data->kind != "directive" ||
+                    (data->text != "db" && data->text != "dw" &&
+                     data->text != "dd" && data->text != "dq"))
+                {
+                    error = "Expected a data directive in 'repeat'";
+                    return false;
+                }
+
+                const std::vector<Token> count_tokens(tokens.begin(), data);
+                Expression expression;
+                if (!parse_expression(count_tokens, expression, error))
+                {
+                    return false;
+                }
             }
         }
     }

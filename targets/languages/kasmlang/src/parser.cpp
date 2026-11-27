@@ -6,23 +6,25 @@
 #include "vertex/common/token.h"
 #include <vector>
 
-
-std::size_t KasmParser::add_node(Node node) {
+std::size_t KasmParser::add_node(Node node)
+{
     const std::size_t index = expression_.nodes.size();
     expression_.nodes.push_back(std::move(node));
     return index;
 }
 
-bool KasmParser::number(std::size_t& node, std::string& error)
+bool KasmParser::number(std::size_t &node, std::string &error)
 {
-    if(at_end() || peek().kind != "integer") {
+    if (at_end() || peek().kind != "integer")
+    {
         error = "Expected an integer";
         return false;
     }
 
-    const Token& token = peek();
+    const Token &token = peek();
     std::uint64_t value = 0;
-    if(!parse_integer(token.text, value)) {
+    if (!parse_integer(token.text, value))
+    {
         error = "Invalid integer: " + token.text;
         return false;
     }
@@ -32,15 +34,18 @@ bool KasmParser::number(std::size_t& node, std::string& error)
     return true;
 }
 
-bool KasmParser::primary(std::size_t& node, std::string& error)
+bool KasmParser::primary(std::size_t &node, std::string &error)
 {
-    if(!at_end() && peek().kind == "punctuation" && peek().text == "(") {
+    if (!at_end() && peek().kind == "punctuation" && peek().text == "(")
+    {
         advance();
 
-        if(!sum(node, error)) {
+        if (!sum(node, error))
+        {
             return false;
         }
-        if(at_end() || peek().kind != "punctuation" || peek().text != ")") {
+        if (at_end() || peek().kind != "punctuation" || peek().text != ")")
+        {
             error = "Expected ')'";
             return false;
         }
@@ -48,21 +53,29 @@ bool KasmParser::primary(std::size_t& node, std::string& error)
         advance();
         return true;
     }
-
+    // TODO: Switch these over to the more meaningful word-like tokens rather than punctuation
+    if (!at_end() && (peek().kind == "dollar" || peek().kind == "dollardollar"))
+    {
+        node = add_node(Node{advance().kind});
+        return true;
+    }
     return number(node, error);
 }
 
-bool KasmParser::sum(std::size_t& node, std::string& error)
+bool KasmParser::sum(std::size_t &node, std::string &error)
 {
-    if(!product(node, error)) {
+    if (!product(node, error))
+    {
         return false;
     }
 
-    while(!at_end() && peek().kind == "punctuation" && (peek().text == "+" || peek().text == "-")) {
+    while (!at_end() && peek().kind == "punctuation" && (peek().text == "+" || peek().text == "-"))
+    {
         const std::string op = peek().text;
         advance();
         std::size_t right = Node::no_child;
-        if(!product(right, error)) {
+        if (!product(right, error))
+        {
             return false;
         }
 
@@ -71,17 +84,20 @@ bool KasmParser::sum(std::size_t& node, std::string& error)
     return true;
 }
 
-bool KasmParser::product(std::size_t& node, std::string& error)
+bool KasmParser::product(std::size_t &node, std::string &error)
 {
-    if(!primary(node, error)) {
+    if (!primary(node, error))
+    {
         return false;
     }
 
-    while(!at_end() && peek().kind == "punctuation" && (peek().text == "*" || peek().text == "/" || peek().text == "%")) {
+    while (!at_end() && peek().kind == "punctuation" && (peek().text == "*" || peek().text == "/" || peek().text == "%"))
+    {
         const std::string op = peek().text;
         advance();
         std::size_t right = Node::no_child;
-        if(!primary(right, error)) {
+        if (!primary(right, error))
+        {
             return false;
         }
 
@@ -90,16 +106,18 @@ bool KasmParser::product(std::size_t& node, std::string& error)
     return true;
 }
 
-bool KasmParser::run(std::string& error)
+bool KasmParser::run(std::string &error)
 {
     expression_.nodes.clear();
     expression_.root = Node::no_child;
 
     std::size_t root = Node::no_child;
-    if(!sum(root, error)) {
+    if (!sum(root, error))
+    {
         return false;
     }
-    if(!at_end()) {
+    if (!at_end())
+    {
         error = "Unexpected token: " + peek().text;
         return false;
     }
@@ -108,10 +126,12 @@ bool KasmParser::run(std::string& error)
     return true;
 }
 
-bool parse_expression(const std::vector<Token>& tokens, Expression& expression, std::string& error) {
+bool parse_expression(const std::vector<Token> &tokens, Expression &expression, std::string &error)
+{
     Expression parsed;
     KasmParser parser(tokens, parsed);
-    if(!parser.run(error)) {
+    if (!parser.run(error))
+    {
         return false;
     }
 
@@ -119,61 +139,91 @@ bool parse_expression(const std::vector<Token>& tokens, Expression& expression, 
     return true;
 }
 
-bool evaluate(const Expression& tree, std::size_t index, std::uint64_t& value, std::string& error) {
-    if(index >= tree.nodes.size()) {
+bool evaluate(const Expression &tree, std::size_t index, std::uint64_t &value, std::string &error, const ExpressionPosition *position)
+{
+    if (index >= tree.nodes.size())
+    {
         error = "Invalid expression node index";
         return false;
     }
 
-    const Node& node = tree.nodes[index];
-    if(node.kind == "number") {
+    const Node &node = tree.nodes[index];
+    if (node.kind == "number")
+    {
         value = node.value;
         return true;
     }
+    // TODO: Switch these over to more meaningful word-like tokens rather than punctuation
+    if (node.kind == "dollar" || node.kind == "dollardollar")
+    {
+        if (!position)
+        {
+            error = "Position tokens require an output position";
+            return false;
+        }
 
-    if(node.kind != "+"
-        && node.kind != "-"
-        && node.kind != "*"
-        && node.kind != "/"
-        && node.kind != "%") {
+        value = node.kind == "dollar"
+                    ? position->current_offset
+                    : position->section_start;
+        return true;
+    }
+
+    if (node.kind != "+" && node.kind != "-" && node.kind != "*" && node.kind != "/" && node.kind != "%")
+    {
         error = "Unknown node kind: " + node.kind;
         return false;
     }
 
     std::uint64_t left = 0;
     std::uint64_t right = 0;
-    if(!evaluate(tree, node.left, left, error)) {
+    if (!evaluate(tree, node.left, left, error, position))
+    {
         return false;
     }
-    if(!evaluate(tree, node.right, right, error)) {
+    if (!evaluate(tree, node.right, right, error, position))
+    {
         return false;
     }
-    if(node.kind == "+") {
-        if(left > std::numeric_limits<std::uint64_t>::max() - right) {
+    if (node.kind == "+")
+    {
+        if (left > std::numeric_limits<std::uint64_t>::max() - right)
+        {
             error = "Integer overflow in expression";
             return false;
         }
         value = left + right;
-    } else if(node.kind == "-") {
-        if(left < right) {
+    }
+    else if (node.kind == "-")
+    {
+        if (left < right)
+        {
             error = "Integer underflow in expression";
             return false;
         }
         value = left - right;
-    } else if(node.kind == "*") {
-        if(right != 0 && left > std::numeric_limits<std::uint64_t>::max() / right) {
+    }
+    else if (node.kind == "*")
+    {
+        if (right != 0 && left > std::numeric_limits<std::uint64_t>::max() / right)
+        {
             error = "Integer overflow in expression";
             return false;
         }
         value = left * right;
-    } else if(node.kind == "/") {
-        if(right == 0) {
+    }
+    else if (node.kind == "/")
+    {
+        if (right == 0)
+        {
             error = "Division by zero in expression";
             return false;
         }
         value = left / right;
-    } else if(node.kind == "%") {
-        if(right == 0) {
+    }
+    else if (node.kind == "%")
+    {
+        if (right == 0)
+        {
             error = "Modulo by zero in expression";
             return false;
         }
@@ -183,15 +233,17 @@ bool evaluate(const Expression& tree, std::size_t index, std::uint64_t& value, s
 }
 
 bool KasmParser::parse_statement(
-    std::unique_ptr<Statement>& statement,
-    std::string& error)
+    std::unique_ptr<Statement> &statement,
+    std::string &error)
 {
-    if(at_end()) {
+    if (at_end())
+    {
         error = "Expected a statement";
         return false;
     }
     const Token first = advance();
-    if (first.kind == "label") {
+    if (first.kind == "label")
+    {
         statement = std::make_unique<LabelStatement>(first.span, first.text);
         return true;
     }
@@ -200,41 +252,53 @@ bool KasmParser::parse_statement(
     std::vector<std::vector<Token>> operands;
     std::vector<Token> operand;
 
-    while(!at_end() && peek().kind != "newline") {
+    while (!at_end() && peek().kind != "newline")
+    {
         const Token token = advance();
         end = token.span.end;
-        if(token.kind == "punctuation" && token.text == ",") {
-            if(operand.empty()) {
+        if (token.kind == "punctuation" && token.text == ",")
+        {
+            if (operand.empty())
+            {
                 error = "Expected an operand before ','.";
                 return false;
             }
             operands.push_back(std::move(operand));
             operand.clear();
-        } else {
+        }
+        else
+        {
             operand.push_back(token);
         }
     }
-    if(!operand.empty()) {
+    if (!operand.empty())
+    {
         operands.push_back(std::move(operand));
-    } else if(!operands.empty()) {
+    }
+    else if (!operands.empty())
+    {
         error = "Statement cannot end with ','.";
         return false;
     }
-    if(!at_end()) advance(); // Consume the newline token if present
+    if (!at_end())
+        advance(); // Consume the newline token if present
 
-    if(first.kind == "identifier") {
+    if (first.kind == "identifier")
+    {
         statement = std::make_unique<InstructionStatement>(
             Span::set(begin, end),
             first.text,
             std::move(operands));
     }
-    else if(first.kind == "directive") {
+    else if (first.kind == "directive")
+    {
         statement = std::make_unique<DirectiveStatement>(
             Span::set(begin, end),
             first.text,
             std::move(operands));
     }
-    else {
+    else
+    {
         error = "Unexpected token at start of statement: " + first.text;
         return false;
     }
@@ -242,13 +306,18 @@ bool KasmParser::parse_statement(
     return true;
 }
 
-bool KasmParser::parse_statements(std::vector<std::unique_ptr<Statement>>& output, std::string& error) {
-    while (!at_end()) {
-        while (!at_end() && peek().kind == "newline") advance();
-        if (at_end()) break;
+bool KasmParser::parse_statements(std::vector<std::unique_ptr<Statement>> &output, std::string &error)
+{
+    while (!at_end())
+    {
+        while (!at_end() && peek().kind == "newline")
+            advance();
+        if (at_end())
+            break;
 
         std::unique_ptr<Statement> statement;
-        if (!parse_statement(statement, error)) return false;
+        if (!parse_statement(statement, error))
+            return false;
         output.push_back(std::move(statement));
     }
     return true;

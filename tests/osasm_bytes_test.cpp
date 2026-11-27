@@ -49,6 +49,12 @@ int main() {
             {0xA5, 0xA5, 0xA5},
         },
         {
+            "repeat count expression",
+            "repeat (2 + 1) db 0\nrepeat 6 / 3 dw 0x1234\n",
+            {0, 0, 0, 0x34, 0x12, 0x34, 0x12},
+            {0, 0, 0, 0x12, 0x34, 0x12, 0x34},
+        },
+        {
             "repeat dw",
             "repeat 2 dw 0x1234\n",
             {0x34, 0x12, 0x34, 0x12},
@@ -150,6 +156,8 @@ int main() {
         "dq 1 + 2",
         "repeat 3",
         "repeat 3 format raw",
+        "repeat (2 +) db 0",
+        "repeat 3 db 0, 9",
     };
     for(const auto* directive : invalid_directives) {
         grammar.set_source(Source{"invalid-bytes.asm", std::string("db 1\n") + directive + "\n"});

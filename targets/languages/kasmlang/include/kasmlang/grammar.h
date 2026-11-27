@@ -126,24 +126,27 @@ private:
 
                 if (directive->name() == "repeat")
                 {
-                    // Handle repeat directive separately
-                    if(operand.size() != 3 || operand[1].kind != "directive")
+                    if (operand.size() < 3 || (operand.end() - 2)->kind != "directive")
                     {
-                        error = "Expected 'repeat' <count> <data directive> <value>";
+                        error = "Expected 'repeat <count> <data directive> <value>'";
                         return false;
                     }
-                    const auto& data_directive = operand[1].text;
+                    const auto data = operand.end() - 2;
+                    const auto &data_directive = data->text;
+                    const auto &value_text = operand.back().text;
+                    const std::vector<Token> count_tokens(operand.begin(), data);
+                    Expression expression;
+                    std::uint64_t repeat_count = 0;
+                    if (!parse_expression(count_tokens, expression, error) ||
+                        !evaluate(expression, expression.root, repeat_count, error))
+                    {
+                        return false;
+                    }
                     if(data_directive == "db") {
                         std::uint8_t value = 0;
-                        if(!parse_byte(operand[2].text, value))
+                        if(!parse_byte(value_text, value))
                         {
-                            error = "Invalid byte value: " + operand[2].text;
-                            return false;
-                        }
-                        std::size_t repeat_count;
-                        if(!parse_integer(operand[0].text, repeat_count))
-                        {
-                            error = "Invalid repeat count: " + operand[0].text;
+                            error = "Invalid byte value: " + value_text;
                             return false;
                         }
                         for (std::uint64_t i = 0; i < repeat_count; ++i)
@@ -151,15 +154,9 @@ private:
                     }
                     else if(data_directive == "dw") {
                         std::uint16_t value = 0;
-                        if(!parse_word(operand[2].text, value))
+                        if(!parse_word(value_text, value))
                         {
-                            error = "Invalid word value: " + operand[2].text;
-                            return false;
-                        }
-                        std::size_t repeat_count;
-                        if(!parse_integer(operand[0].text, repeat_count))
-                        {
-                            error = "Invalid repeat count: " + operand[0].text;
+                            error = "Invalid word value: " + value_text;
                             return false;
                         }
                         for (std::uint64_t i = 0; i < repeat_count; ++i)
@@ -178,15 +175,9 @@ private:
                     }
                     else if(data_directive == "dd") {
                         std::uint32_t value = 0;
-                        if(!parse_dword(operand[2].text, value))
+                        if(!parse_dword(value_text, value))
                         {
-                            error = "Invalid dword value: " + operand[2].text;
-                            return false;
-                        }
-                        std::size_t repeat_count;
-                        if(!parse_integer(operand[0].text, repeat_count))
-                        {
-                            error = "Invalid repeat count: " + operand[0].text;
+                            error = "Invalid dword value: " + value_text;
                             return false;
                         }
                         for (std::uint64_t i = 0; i < repeat_count; ++i)
@@ -211,15 +202,9 @@ private:
                     else if(data_directive == "dq")
                     {
                         std::uint64_t value = 0;
-                        if(!parse_qword(operand[2].text, value))
+                        if(!parse_qword(value_text, value))
                         {
-                            error = "Invalid qword value: " + operand[2].text;
-                            return false;
-                        }
-                        std::size_t repeat_count;
-                        if(!parse_integer(operand[0].text, repeat_count))
-                        {
-                            error = "Invalid repeat count: " + operand[0].text;
+                            error = "Invalid qword value: " + value_text;
                             return false;
                         }
                         for (std::uint64_t i = 0; i < repeat_count; ++i)

@@ -1,4 +1,5 @@
 #include "kasmlang/semantic.h"
+#include "kasmlang/parser.h"
 #include "kasmlang/statements/statements.h"
 #include "utils/integer.h"
 
@@ -140,48 +141,29 @@ bool KasmSemanticAnalyzer::analyze(
             }
             if (dirStmt->name() == "repeat")
             {
-                if (dirStmt->operands().empty())
+                const auto &operands = dirStmt->operands();
+                if (operands.size() != 1 || operands.front().size() < 3)
                 {
-                    error = "The 'repeat' directive requires at least one operand.";
+                    error = "Expected 'repeat <count> <data directive> <value>'";
                     return false;
                 }
-                // The first operand of the 'repeat' directive should be the repeat count.
-                if (dirStmt->operands().front().size() != 3)
-                {
-                    error = "The 'repeat' directive expects exactly three operands for the repeat count.";
-                    return false;
-                }
-                Token tokenCount  = dirStmt->operands().front()[0];
-                if (tokenCount.kind != "integer")
-                {
-                    error = "The 'repeat' directive expects an integer operand.";
-                    return false;
-                }
-                std::uint64_t repeat_count;
-                if(!parse_integer(tokenCount.text, repeat_count))
-                {
-                    error = "The 'repeat' directive contains an invalid integer value: " + tokenCount.text;
-                    return false;
-                }
-                 Token tokenDirective  = dirStmt->operands().front()[1];
-                 if (tokenDirective.kind != "directive")
-                 {
-                     error = "The 'repeat' directive expects a directive as the second operand.";
-                     return false;
-                 }
-                 if(tokenDirective.text == "db" || tokenDirective.text == "dw" || tokenDirective.text == "dd" || tokenDirective.text == "dq")
-                 {
-                     // Valid directive for repeat
 
-                 }
-                 else
-                 {
-                     error = "The 'repeat' directive expects a valid data directive as the second operand.";
-                     return false;
-                 }
-                
+                const auto &tokens = operands.front();
+                const auto data = tokens.end() - 2;
+                if (data->kind != "directive" ||
+                    (data->text != "db" && data->text != "dw" &&
+                     data->text != "dd" && data->text != "dq"))
+                {
+                    error = "Expected a data directive in 'repeat'";
+                    return false;
+                }
 
-                
+                const std::vector<Token> count_tokens(tokens.begin(), data);
+                Expression expression;
+                if (!parse_expression(count_tokens, expression, error))
+                {
+                    return false;
+                }
             }
         }
     }

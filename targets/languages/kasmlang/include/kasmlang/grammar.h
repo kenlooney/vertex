@@ -114,7 +114,8 @@ private:
                                directive->name() != "dw" &&
                                directive->name() != "dd" &&
                                directive->name() != "dq" &&
-                               directive->name() != "format"))
+                               directive->name() != "format" &&
+                               directive->name() != "repeat"))
             {
                 error = "Unsupported statement for byte collection";
                 return false;
@@ -123,6 +124,133 @@ private:
             for (const auto &operand : directive->operands())
             {
 
+                if (directive->name() == "repeat")
+                {
+                    // Handle repeat directive separately
+                    if(operand.size() != 3 || operand[1].kind != "directive")
+                    {
+                        error = "Expected 'repeat' <count> <data directive> <value>";
+                        return false;
+                    }
+                    const auto& data_directive = operand[1].text;
+                    if(data_directive == "db") {
+                        std::uint8_t value = 0;
+                        if(!parse_byte(operand[2].text, value))
+                        {
+                            error = "Invalid byte value: " + operand[2].text;
+                            return false;
+                        }
+                        std::size_t repeat_count;
+                        if(!parse_integer(operand[0].text, repeat_count))
+                        {
+                            error = "Invalid repeat count: " + operand[0].text;
+                            return false;
+                        }
+                        for (std::uint64_t i = 0; i < repeat_count; ++i)
+                        bytes.push_back(value);
+                    }
+                    else if(data_directive == "dw") {
+                        std::uint16_t value = 0;
+                        if(!parse_word(operand[2].text, value))
+                        {
+                            error = "Invalid word value: " + operand[2].text;
+                            return false;
+                        }
+                        std::size_t repeat_count;
+                        if(!parse_integer(operand[0].text, repeat_count))
+                        {
+                            error = "Invalid repeat count: " + operand[0].text;
+                            return false;
+                        }
+                        for (std::uint64_t i = 0; i < repeat_count; ++i)
+                        {
+                            if (endianness == Endianness::Little)
+                            {
+                                bytes.push_back(static_cast<std::uint8_t>(value & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
+                            }
+                            else
+                            {
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>(value & 0xFF));
+                            }
+                        }
+                    }
+                    else if(data_directive == "dd") {
+                        std::uint32_t value = 0;
+                        if(!parse_dword(operand[2].text, value))
+                        {
+                            error = "Invalid dword value: " + operand[2].text;
+                            return false;
+                        }
+                        std::size_t repeat_count;
+                        if(!parse_integer(operand[0].text, repeat_count))
+                        {
+                            error = "Invalid repeat count: " + operand[0].text;
+                            return false;
+                        }
+                        for (std::uint64_t i = 0; i < repeat_count; ++i)
+                        {
+                            if (endianness == Endianness::Little)
+                            {
+                                bytes.push_back(static_cast<std::uint8_t>(value & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 16) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 24) & 0xFF));
+                            }
+                            else
+                            {
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 24) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 16) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>(value & 0xFF));
+                            }
+                        }
+                    }
+    
+                    else if(data_directive == "dq")
+                    {
+                        std::uint64_t value = 0;
+                        if(!parse_qword(operand[2].text, value))
+                        {
+                            error = "Invalid qword value: " + operand[2].text;
+                            return false;
+                        }
+                        std::size_t repeat_count;
+                        if(!parse_integer(operand[0].text, repeat_count))
+                        {
+                            error = "Invalid repeat count: " + operand[0].text;
+                            return false;
+                        }
+                        for (std::uint64_t i = 0; i < repeat_count; ++i)
+                        {
+                            if (endianness == Endianness::Little)
+                            {
+                                bytes.push_back(static_cast<std::uint8_t>(value & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 16) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 24) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 32) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 40) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 48) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 56) & 0xFF));
+                            }
+                            else
+                            {
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 56) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 48) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 40) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 32) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 24) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 16) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
+                                bytes.push_back(static_cast<std::uint8_t>(value & 0xFF));
+                            }
+                        }
+                    }
+                   
+                    continue;
+                }
                 if (directive->name() == "dq")
                 {
                     std::uint64_t qword = 0;

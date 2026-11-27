@@ -138,6 +138,51 @@ bool KasmSemanticAnalyzer::analyze(
                 std::string format = operands.front().front().text;
                 this->format_ = format;
             }
+            if (dirStmt->name() == "repeat")
+            {
+                if (dirStmt->operands().empty())
+                {
+                    error = "The 'repeat' directive requires at least one operand.";
+                    return false;
+                }
+                // The first operand of the 'repeat' directive should be the repeat count.
+                if (dirStmt->operands().front().size() != 3)
+                {
+                    error = "The 'repeat' directive expects exactly three operands for the repeat count.";
+                    return false;
+                }
+                Token tokenCount  = dirStmt->operands().front()[0];
+                if (tokenCount.kind != "integer")
+                {
+                    error = "The 'repeat' directive expects an integer operand.";
+                    return false;
+                }
+                std::uint64_t repeat_count;
+                if(!parse_integer(tokenCount.text, repeat_count))
+                {
+                    error = "The 'repeat' directive contains an invalid integer value: " + tokenCount.text;
+                    return false;
+                }
+                 Token tokenDirective  = dirStmt->operands().front()[1];
+                 if (tokenDirective.kind != "directive")
+                 {
+                     error = "The 'repeat' directive expects a directive as the second operand.";
+                     return false;
+                 }
+                 if(tokenDirective.text == "db" || tokenDirective.text == "dw" || tokenDirective.text == "dd" || tokenDirective.text == "dq")
+                 {
+                     // Valid directive for repeat
+
+                 }
+                 else
+                 {
+                     error = "The 'repeat' directive expects a valid data directive as the second operand.";
+                     return false;
+                 }
+                
+
+                
+            }
         }
     }
 

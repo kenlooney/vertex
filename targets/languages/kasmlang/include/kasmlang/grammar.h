@@ -110,12 +110,11 @@ private:
             const auto *directive =
                 dynamic_cast<const DirectiveStatement *>(statement.get());
 
-            if (!directive || (
-                directive->name() != "db" && 
-                directive->name() != "dw" && 
-                directive->name() != "dd" &&
-                directive->name() != "dq" &&
-                directive->name() != "format"))
+            if (!directive || (directive->name() != "db" &&
+                               directive->name() != "dw" &&
+                               directive->name() != "dd" &&
+                               directive->name() != "dq" &&
+                               directive->name() != "format"))
             {
                 error = "Unsupported statement for byte collection";
                 return false;
@@ -123,8 +122,8 @@ private:
 
             for (const auto &operand : directive->operands())
             {
-                
-                if(directive->name() == "dq")
+
+                if (directive->name() == "dq")
                 {
                     std::uint64_t qword = 0;
                     if (!parse_qword(operand.front().text, qword))
@@ -156,7 +155,7 @@ private:
                     }
                     continue;
                 }
-                if(directive->name() == "dd")
+                if (directive->name() == "dd")
                 {
                     std::uint32_t dword = 0;
                     if (!parse_dword(operand.front().text, dword))
@@ -188,7 +187,7 @@ private:
                         error = "Invalid word value: " + operand.front().text;
                         return false;
                     }
-                   
+
                     if (endianness == Endianness::Little)
                     {
                         bytes.push_back(static_cast<std::uint8_t>(word & 0xFF));
@@ -242,29 +241,62 @@ private:
                              std::string &error)
     {
         const auto &operands = instruction.operands();
-        if (operands.size() != 1 || operands.front().size() != 1)
+        if (operands.size() != 1)
         {
-            error = "Expected one label operand for 'jmp'";
+            error = "Expected 'jmp label' or 'jmp near label'";
             return false;
         }
-        const auto &target = operands.front().front();
+        const auto &tokens = operands.front();
+        const bool far = tokens.size() > 1 && tokens.front().text == "far";
+        if (far)
+        {
+            std::uint16_t segment = 0;
+            std::uint16_t target_offset = 0;
+
+            if (tokens.size() != 4 || tokens[2].text != ":" ||
+                !parse_word(tokens[1].text, segment) ||
+                !parse_word(tokens[3].text, target_offset))
+            {
+                error = "Expected 'jmp far segment:offset' with two 16-bit numbers";
+                return false;
+            }
+
+            if (!cpu || !cpu->encoder() || !cpu->register_file() ||
+                !cpu->encoder()->encode(*cpu->register_file(), "jmp far",
+                                        {FarOperand{segment, target_offset}}, bytes))
+            {
+                error = "The selected CPU cannot encode a far jump";
+                return false;
+            }
+
+            return true;
+        }
+        const bool near = tokens.size() == 2 && tokens.front().kind == "identifier" &&
+                          tokens.front().text == "near";
+        if (tokens.size() != 1 && !near)
+        {
+            error = "Expected 'jmp label' or 'jmp near label'";
+            return false;
+        }
+        const auto &target = tokens.back();
         // A label name can also be a directive keyword or a suffix-style hex literal.
         if (target.kind == "label" || target.text.empty() ||
             !std::isalpha(static_cast<unsigned char>(target.text.front())))
         {
-            error = "Expected one label operand for 'jmp'";
+            error = "Expected a jump target label";
             return false;
         }
 
+        const char *encoder_key = near ? "jmp near" : "jmp";
         const auto start = bytes.size();
         if (!cpu || !cpu->encoder() || !cpu->register_file() ||
-            !cpu->encoder()->encode(*cpu->register_file(), "jmp", {RelativeOperand{0}}, bytes) ||
+            !cpu->encoder()->encode(*cpu->register_file(), encoder_key, {RelativeOperand{0}}, bytes) ||
             bytes.size() == start)
         {
             error = "The selected CPU cannot encode a relative jump";
             return false;
         }
-        fixups.push_back({target.text, start, bytes.size(), instruction.span()});
+        fixups.push_back({target.text, start, bytes.size(), instruction.span(), encoder_key});
         return true;
     }
 
@@ -295,7 +327,8 @@ private:
             const auto displacement = backward ? -magnitude : magnitude;
 
             std::vector<std::uint8_t> encoded;
-            if (!cpu.encoder()->encode(*cpu.register_file(), "jmp", {RelativeOperand{displacement}}, encoded))
+            if (!cpu.encoder()->encode(*cpu.register_file(), fixup.encoder_key,
+                                       {RelativeOperand{displacement}}, encoded))
             {
                 error = "Relative jump out of range for label: " + fixup.target;
                 return false;

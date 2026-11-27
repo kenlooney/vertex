@@ -95,10 +95,16 @@ public:
             return decode_nop(registers, bytes, offset, text);
         case 0xEB: // Short jump opcode
             return decode_short_jump(registers, bytes, offset, text);
+        case 0xE9: // Near jump in 16-bit mode
+            return decode_near_jump(bytes, offset, text);
+        case 0xEA: // Far jump opcode
+            return decode_far_jump(bytes, offset, text);
         default:
             return false;
         }
     }
+
+private:
     bool decode_short_jump(const RegisterFile &registers, const std::vector<std::uint8_t> &bytes, std::size_t &offset, std::string &text)
     {
         if (offset + 1 >= bytes.size())
@@ -111,6 +117,42 @@ public:
         offset += 2;
         return true;
     }
+
+    static bool decode_near_jump(const std::vector<std::uint8_t> &bytes,
+                                 std::size_t &offset, std::string &text)
+    {
+        if (bytes.size() - offset < 3)
+        {
+            return false;
+        }
+
+        const auto low = static_cast<std::int32_t>(bytes[offset + 1]);
+        const auto high = static_cast<std::int32_t>(bytes[offset + 2]);
+        const auto raw = low | (high << 8);
+        const auto displacement = raw < 0x8000 ? raw : raw - 0x10000;
+        text = "jmp near relative " + std::to_string(displacement);
+        offset += 3;
+        return true;
+    }
+    static bool decode_far_jump(const std::vector<std::uint8_t> &bytes,
+                                std::size_t &offset, std::string &text)
+    {
+        if (bytes.size() - offset < 5)
+        {
+            return false;
+        }
+
+        const auto b0 = static_cast<std::int32_t>(bytes[offset + 1]);
+        const auto b1 = static_cast<std::int32_t>(bytes[offset + 2]);
+        const auto b2 = static_cast<std::int32_t>(bytes[offset + 3]);
+        const auto b3 = static_cast<std::int32_t>(bytes[offset + 4]);
+        std::size_t off = (b1 * 256) + b0;
+        std::size_t seg = (b3 * 256) + b2;
+        text = "jmp far " + std::to_string(seg) + ":" + std::to_string(off);
+        offset += 5;
+        return true;
+    }
+
     bool decode_nop(const RegisterFile &registers, const std::vector<std::uint8_t> &bytes, std::size_t &offset, std::string &text)
     {
         if (offset < bytes.size() && bytes[offset] == 0x90) // NOP opcode
@@ -258,10 +300,6 @@ private:
             return false;
         }
         const auto *relative = std::get_if<RelativeOperand>(&operands.front());
-        if (!relative)
-        {
-            return false;
-        }
         if (!relative || relative->displacement < -32768 || relative->displacement > 32767)
         {
             return false;
@@ -288,6 +326,24 @@ private:
         bytes.insert(bytes.end(), {0xEB, static_cast<std::uint8_t>(relative->displacement)});
         return true;
     }
+    static bool encode_far_jump(const RegisterFile &, const std::vector<Operand> &operands,
+                                std::vector<std::uint8_t> &bytes)
+    {
+        if (operands.size() != 1)
+        {
+            return false;
+        }
+        const auto *far = std::get_if<FarOperand>(&operands.front());
+        if (!far)
+            return false;
+
+        bytes.insert(bytes.end(), {0xEA,
+                                   static_cast<std::uint8_t>(far->offset % 256),
+                                   static_cast<std::uint8_t>(far->offset / 256),
+                                   static_cast<std::uint8_t>(far->segment % 256),
+                                   static_cast<std::uint8_t>(far->segment / 256)});
+        return true;
+    }
 
     struct InstructionEncoding
     {
@@ -302,7 +358,8 @@ private:
         {"hlt", encode_hlt},
         {"nop", encode_nop},
         {"jmp", encode_short_jump},
-        {"jmp near", encode_near_jump}};
+        {"jmp near", encode_near_jump},
+        {"jmp far", encode_far_jump}};
 };
 class X86Cpu : public Cpu
 {

@@ -59,7 +59,8 @@ int main(int argc, char* argv[]) {
     }
     const std::vector<std::uint8_t> bytes{
         std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
-    const std::vector<std::uint8_t> expected_bytes{0xB0, 0x01, 0xB1, 0x02, 0x90};
+    const std::vector<std::uint8_t> expected_bytes{
+        0xB0, 0x01, 0xB1, 0x02, 0x90, 0xE9, 0x01, 0x00, 0x90, 0xEB, 0xFA, 0xE9, 0xF7, 0xFF};
     if (input.bad() || bytes != expected_bytes) {
         std::cerr << "Unexpected machine bytes for " << source.path << '\n';
         return 1;
@@ -69,7 +70,9 @@ int main(int argc, char* argv[]) {
         const char* text;
         std::size_t next_offset;
     };
-    constexpr ExpectedInstruction expected[] = {{"mov al, 1", 2}, {"mov cl, 2", 4}, {"nop", 5}};
+    constexpr ExpectedInstruction expected[] = {
+        {"mov al, 1", 2}, {"mov cl, 2", 4}, {"nop", 5}, {"jmp near relative 1", 8},
+        {"nop", 9}, {"jmp relative -6", 11}, {"jmp near relative -9", 14}};
     std::size_t offset = 0;
     std::string text;
     for (const auto& instruction : expected) {
@@ -87,16 +90,19 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    const auto last_text = text;
     if (offset != bytes.size() || decoder->decode(*registers, bytes, offset, text) ||
-        offset != bytes.size() || text != "nop") {
+        offset != bytes.size() || text != last_text) {
         std::cerr << "Decoding past the last instruction must preserve offset and text\n";
         return 1;
     }
 
-    const std::vector<std::uint8_t> truncated{0xB0};
-    offset = 0;
-    if (decoder->decode(*registers, truncated, offset, text) || offset != 0 || text != "nop") {
-        std::cerr << "A truncated MOV must preserve offset and text\n";
-        return 1;
+    const std::vector<std::uint8_t> truncated_cases[] = {{0xB0}, {0xE9}, {0xE9, 0x01}};
+    for (const auto& truncated : truncated_cases) {
+        offset = 0;
+        if (decoder->decode(*registers, truncated, offset, text) || offset != 0 || text != last_text) {
+            std::cerr << "A truncated instruction must preserve offset and text\n";
+            return 1;
+        }
     }
 }

@@ -137,8 +137,9 @@ private:
                     const std::vector<Token> count_tokens(operand.begin(), data);
                     Expression expression;
                     std::uint64_t repeat_count = 0;
+                    const ExpressionPosition position{bytes.size(), 0};
                     if (!parse_expression(count_tokens, expression, error) ||
-                        !evaluate(expression, expression.root, repeat_count, error))
+                        !evaluate(expression, expression.root, repeat_count, error, &position))
                     {
                         return false;
                     }

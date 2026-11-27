@@ -13,8 +13,13 @@
 #include <vector>
 #include <memory>
 
+struct ExpressionPosition {
+    std::uint64_t current_offset;
+    std::uint64_t section_start;
+};
+
 bool parse_expression(const std::vector<Token>& tokens, Expression& expression, std::string& error);
-bool evaluate(const Expression& tree, std::size_t index, std::uint64_t& value, std::string& error);
+bool evaluate(const Expression& tree, std::size_t index, std::uint64_t& value, std::string& error, const ExpressionPosition* position = nullptr);
 class KasmParser : public Parser {
 public:
     explicit KasmParser(std::vector<Token> tokens)
@@ -38,4 +43,5 @@ private:
 
     Expression owned_expression_;
     Expression& expression_;
+    const ExpressionPosition* position_ = nullptr;
 };

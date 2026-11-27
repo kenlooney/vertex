@@ -18,8 +18,9 @@ encode and decode short, 16-bit near, and 16-bit far jumps.
 - Width-checked binary, octal, decimal, and hexadecimal integer literals with
   modern prefixes and legacy suffixes. An overflow-checked expression evaluator
   supports `+`, `-`, `*`, `/`, `%`, precedence, and parentheses.
-- Endian-aware `db`, `dw`, `dd`, and `dq` output, optional `format` metadata, and
-  symbol lookup for forward and backward jumps.
+- Endian-aware `db`, `dw`, `dd`, and `dq` output, expression-based `repeat`,
+  padding to an output position, and optional `format` metadata.
+- Symbol lookup for forward and backward jumps.
 - Raw binary output through the `osasm` CLI, with validation before the output
   file is opened.
 - CTest coverage for plugin loading, KASM parsing and semantics, raw output,
@@ -48,10 +49,9 @@ produces these eight byte values:
 5, 255, 42, 1, 2, 3, 4, 5
 ```
 
-The collector accepts `db`, `dw`, `dd`, and `dq` for unsigned 1-, 2-, 4-, and 8-byte
-values, plus optional `format` metadata that contributes no bytes. Each data operand
-must be a single integer token within its directive's unsigned range. Expression
-evaluation is not yet connected to directive operands.
+The collector accepts `db`, `dw`, `dd`, and `dq` for unsigned 1-, 2-, 4-, and
+8-byte values. Each data value is a single integer literal within its
+directive's unsigned range. The optional `format` metadata emits zero bytes.
 
 With the x86 plugin, `mov` and `add` accept `al`, `cl`, `dl`, `bl`, `ah`, `ch`,
 `dh`, or `bh` and an immediate expression in the range `0`–`255`. Both `hlt`
@@ -77,6 +77,29 @@ and expose it through `endianness()`. The x86 plugin declares `Endianness::Littl
 The collector uses this setting for multi-byte data emission.
 Endianness does not change `db` output: operands always stay in source order.
 `dw`, `dd`, and `dq` serialize each value in the selected CPU's data byte order.
+
+### Repeating data and padding
+
+`repeat <count> <data directive> <value>` repeats a single `db`, `dw`, `dd`,
+or `dq` value. The count can be an integer literal or an arithmetic expression.
+The collector evaluates it once before emitting any copies. A count of zero emits
+zero bytes. Each copy uses the full width and byte order of the data directive.
+For example, `repeat 2 dw 0x1234` emits `34 12 34 12` with the x86 plugin.
+
+In a repeat count, `$` is the current output byte offset and `$$` is the
+start of the current section. Vertex's raw output uses one section starting at
+offset zero. To pad to a section-relative position, subtract `($ - $$)` from
+the desired offset.
+
+```asm
+db 0xAA
+repeat 4 - ($ - $$) db 0
+```
+
+This emits `AA 00 00 00`. With `510` in place of `4`, the next statement would
+start at byte `510`. If the output has already passed the target, the count
+expression reports integer underflow and assembly fails before opening the
+output file.
 
 ## x86 jumps and fixups
 
@@ -230,9 +253,9 @@ numeric bases, and arithmetic error cases.
 
 The `osasm_bytes_test` checks exact byte vectors for `db`, `dw`, `dd`, and `dq`
 in little- and big-endian order, including zero and maximum `dd`/`dq` values.
-It also checks that overflowing values, missing `dd`/`dq` operands, and unsupported
-`dd`/`dq` expressions are rejected with an error without modifying the caller's
-output vector.
+It also covers `repeat` for all four widths, zero repeats, arithmetic counts,
+and rejection of malformed directives without modifying the caller's output
+vector.
 
 A placeholder `format testformat` fixture checks the format debug message and
 verifies that the directive adds no bytes in either endian mode. This does not

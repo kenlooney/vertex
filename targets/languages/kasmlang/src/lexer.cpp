@@ -8,7 +8,8 @@
 
 constexpr std::string_view directives[] = {
     "db","dw","dd","dq",
-    "format"
+    "format",
+    "repeat"
 };
 namespace
 {

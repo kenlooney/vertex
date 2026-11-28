@@ -9,7 +9,9 @@
 constexpr std::string_view directives[] = {
     "db", "dw", "dd", "dq",
     "format",
-    "repeat"};
+    "repeat",
+    "include"
+};
 namespace
 {
     char lower_ascii(char ch)
@@ -217,6 +219,36 @@ std::vector<Token> KasmLexer::tokenize()
         if (cursor > begin)
         {
             add_token("integer", text.substr(begin, cursor - begin), Span::set(begin, cursor));
+            continue;
+        }
+
+        // String literal
+        if(ch == '"' || ch == '\'')
+        {
+            const char quote = ch;
+            ++cursor;
+            while (cursor < text.size() && text[cursor] != quote)
+            {
+                if (text[cursor] == '\r' || text[cursor] == '\n')
+                {
+                    break;
+                }
+                ++cursor;
+            }
+            // if (cursor < text.size() && text[cursor] == quote)
+            // {
+            //     ++cursor;
+            // }
+            if (cursor >= text.size() || text[cursor] != quote)
+            {
+                // Unterminated string literal
+                add_token("unterminated_string", text.substr(begin, cursor - begin), Span::set(begin, cursor));
+                continue;
+            }
+            std::string value = text.substr(begin + 1, cursor - begin - 1);
+            ++cursor;
+            add_token("string", value, Span::set(begin, cursor));
+
             continue;
         }
 

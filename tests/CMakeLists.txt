@@ -62,3 +62,10 @@ add_dependencies(osasm_x86_decode_test x86_cpu)
 add_test(NAME osasm_x86_decode_test COMMAND osasm_x86_decode_test
   "${EXAMPLES_DIR}/decode.asm" "$<TARGET_FILE:x86_cpu>"
   "${CMAKE_CURRENT_BINARY_DIR}/x86_decode_$<CONFIG>.bin")
+
+add_test(NAME osasm_include_test COMMAND ${CMAKE_COMMAND}
+  "-DOSASM=$<TARGET_FILE:osasm>"
+  "-DX86_PLUGIN=$<TARGET_FILE:x86_cpu>"
+  "-DSOURCE=${EXAMPLES_DIR}/include.asm"
+  "-DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/include_$<CONFIG>.bin"
+  -P "${CMAKE_CURRENT_SOURCE_DIR}/osasm_include_test.cmake")

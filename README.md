@@ -20,6 +20,7 @@ encode and decode short, 16-bit near, and 16-bit far jumps.
   supports `+`, `-`, `*`, `/`, `%`, precedence, and parentheses.
 - Endian-aware `db`, `dw`, `dd`, and `dq` output, expression-based `repeat`,
   padding to an output position, and optional `format` metadata.
+- Quoted `include` directives that insert statements from another source file.
 - Symbol lookup for forward and backward jumps.
 - Raw binary output through the `osasm` CLI, with validation before the output
   file is opened.
@@ -31,7 +32,7 @@ encode and decode short, 16-bit near, and 16-bit far jumps.
 The byte collection pipeline is:
 
 ```text
-source -> KASM lexing -> statements -> semantic checks -> data and instruction bytes -> raw binary file
+source -> KASM lexing and parsing -> include expansion -> semantic checks -> data and instruction bytes -> raw binary file
 ```
 
 Each comma-delimited `db` operand contributes one byte. For example,
@@ -100,6 +101,23 @@ This emits `AA 00 00 00`. With `510` in place of `4`, the next statement would
 start at byte `510`. If the output has already passed the target, the count
 expression reports integer underflow and assembly fails before opening the
 output file.
+
+### Including another source file
+
+`include "lib/startup.inc"` takes one filename in single or double quotes.
+Relative paths resolve from the directory of the main source file. The
+assembler inserts the included statements at the position of the directive
+before semantic checks and byte collection. This version supports one level
+of inclusion.
+
+[`examples/include.asm`](examples/include.asm) emits `01 2A 02`. The middle
+byte comes from `db 42` in [`examples/lib/startup.inc`](examples/lib/startup.inc).
+The `osasm_include_test` assembles this example, checks the exact bytes, and
+prints them in verbose mode.
+
+```powershell
+ctest --test-dir build/windows-debug -C Debug -V -R '^osasm_include_test$'
+```
 
 ## x86 jumps and fixups
 

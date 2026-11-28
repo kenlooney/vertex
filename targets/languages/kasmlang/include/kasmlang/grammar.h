@@ -12,6 +12,8 @@
 #include <limits>
 #include "vertex/common/symbols.h"
 #include "vertex/common/fixup.h"
+#include <string>
+#include <filesystem>
 
 class KasmGrammar : public Grammar
 {
@@ -24,11 +26,61 @@ public:
         auto *kasmParser = dynamic_cast<KasmParser *>(parser());
         if (!kasmParser)
         {
-            error = "KASM parser is not initialized";
+            error = "Failed to create parser";
             return false;
         }
+        if (!kasmParser->parse_statements(statements, error))
+        {
+            return false;
+        }
+        std::vector<std::unique_ptr<Statement>> expanded_statements;
 
-        return kasmParser->parse_statements(statements, error);
+        for (auto &statement : statements)
+        {
+            const auto *directive = dynamic_cast<const DirectiveStatement *>(statement.get());
+
+            if (!directive || directive->name() != "include")
+            {
+                expanded_statements.push_back(std::move(statement));
+                continue;
+            }
+            const auto &operands = directive->operands();
+            if (operands.size() != 1 || operands.front().size() != 1 ||
+                operands.front().front().kind != "string")
+            {
+                error = "Expected one quoted filename after 'include'";
+                return false;
+            }
+            const auto &filename = operands.front().front().text;
+            const std::filesystem::path source_path(lexer()->source().path);
+            const auto include_path = source_path.parent_path() / filename;
+            Source included_source;
+            const auto path = include_path.string();
+
+            if (!Source::load(path, included_source))
+            {
+                error = "Could not load include file: " + path;
+                return false;
+            }
+
+            KasmLexer include_lexer(included_source);
+            KasmParser include_parser(include_lexer.tokenize());
+
+            std::vector<std::unique_ptr<Statement>> included_statements;
+            if (!include_parser.parse_statements(included_statements, error))
+            {
+                error = path + ": " + error;
+                return false;
+            }
+
+            for (auto &included_statement : included_statements)
+            {
+                expanded_statements.push_back(std::move(included_statement));
+            }
+        }
+
+        statements = std::move(expanded_statements);
+        return true;
     }
     bool analyze(
         const std::vector<std::unique_ptr<Statement>> &statements,
@@ -115,7 +167,8 @@ private:
                                directive->name() != "dd" &&
                                directive->name() != "dq" &&
                                directive->name() != "format" &&
-                               directive->name() != "repeat"))
+                               directive->name() != "repeat" &&
+                               directive->name() != "include"))
             {
                 error = "Unsupported statement for byte collection";
                 return false;
@@ -124,6 +177,19 @@ private:
             for (const auto &operand : directive->operands())
             {
 
+                if (directive->name() == "include")
+                {
+
+                    if (operand.size() != 1)
+                    {
+                        error = "Expected 'include <file>'";
+                        return false;
+                    }
+                    const auto &file_token = operand.front();
+                    const std::string &file_name = file_token.text;
+
+                    continue;
+                }
                 if (directive->name() == "repeat")
                 {
                     if (operand.size() < 3 || (operand.end() - 2)->kind != "directive")
@@ -143,19 +209,21 @@ private:
                     {
                         return false;
                     }
-                    if(data_directive == "db") {
+                    if (data_directive == "db")
+                    {
                         std::uint8_t value = 0;
-                        if(!parse_byte(value_text, value))
+                        if (!parse_byte(value_text, value))
                         {
                             error = "Invalid byte value: " + value_text;
                             return false;
                         }
                         for (std::uint64_t i = 0; i < repeat_count; ++i)
-                        bytes.push_back(value);
+                            bytes.push_back(value);
                     }
-                    else if(data_directive == "dw") {
+                    else if (data_directive == "dw")
+                    {
                         std::uint16_t value = 0;
-                        if(!parse_word(value_text, value))
+                        if (!parse_word(value_text, value))
                         {
                             error = "Invalid word value: " + value_text;
                             return false;
@@ -174,9 +242,10 @@ private:
                             }
                         }
                     }
-                    else if(data_directive == "dd") {
+                    else if (data_directive == "dd")
+                    {
                         std::uint32_t value = 0;
-                        if(!parse_dword(value_text, value))
+                        if (!parse_dword(value_text, value))
                         {
                             error = "Invalid dword value: " + value_text;
                             return false;
@@ -199,11 +268,11 @@ private:
                             }
                         }
                     }
-    
-                    else if(data_directive == "dq")
+
+                    else if (data_directive == "dq")
                     {
                         std::uint64_t value = 0;
-                        if(!parse_qword(value_text, value))
+                        if (!parse_qword(value_text, value))
                         {
                             error = "Invalid qword value: " + value_text;
                             return false;
@@ -234,7 +303,7 @@ private:
                             }
                         }
                     }
-                   
+
                     continue;
                 }
                 if (directive->name() == "dq")

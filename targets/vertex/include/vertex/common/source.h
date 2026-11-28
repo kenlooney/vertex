@@ -16,9 +16,10 @@
 
 #pragma once
 #include <string>
-
+#include <utility>
 struct Source {
     std::string path;
     std::string text;
     static bool load(const std::string& path, Source& result);
+    std::pair<std::size_t, std::size_t> line_column(std::size_t offset) const;
 };

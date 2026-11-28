@@ -70,8 +70,28 @@ std::unique_ptr<OptionResult> OsasmAssembler::assemble(
 
     if (!grammar()->analyze(statements, error))
     {
-        OsasmDiagnostic diag(source.path, error, Span{0, 0});
-        diag.report();
+        const auto &error_filename = grammar()->error_filename();
+        const auto &filename = error_filename.empty() ? source.path : error_filename;
+        OsasmDiagnostic diag(filename, error, grammar()->error_span());
+
+        Source included_source;
+        if (error_filename.empty())
+        {
+            diag.report();
+        }
+        else if (filename == source.path)
+        {
+            diag.report(source);
+        }
+        else if (Source::load(filename, included_source))
+        {
+            diag.report(included_source);
+        }
+        else
+        {
+            diag.report();
+        }
+
         return result;
     }
 
@@ -131,7 +151,7 @@ std::unique_ptr<OptionResult> OsasmAssembler::assemble(
     }
     if (!output.empty())
     {
-        file.write(reinterpret_cast<const char*>(output.data()),
+        file.write(reinterpret_cast<const char *>(output.data()),
                    static_cast<std::streamsize>(output.size()));
     }
     if (!file)

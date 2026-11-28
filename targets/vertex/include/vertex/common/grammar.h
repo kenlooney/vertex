@@ -60,13 +60,23 @@ public:
 private:
     std::string name_;
     std::string format_;
+    std::string error_filename_;
+    Span error_span_{};
+
 public:
-    const std::string& format() const { return format_; }
+    const std::string &format() const { return format_; }
     std::unique_ptr<Lexer> lexer_;
     std::unique_ptr<Parser> parser_;
+    const std::string &error_filename() const { return error_filename_; }
+    Span error_span() const { return error_span_; }
 
 protected:
     void set_format(std::string format) { format_ = std::move(format); }
     virtual std::unique_ptr<Lexer> make_lexer(const Source &source) = 0;
     virtual std::unique_ptr<Parser> make_parser(std::vector<Token> tokens) = 0;
+    void set_error_location(const std::string &filename, Span span)
+    {
+        error_filename_ = filename;
+        error_span_ = span;
+    }
 };

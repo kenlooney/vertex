@@ -19,7 +19,7 @@
 #include "vertex/plugins/plugin.h"
 
 // Bump whenever Grammar's layout or virtual interface changes so stale plugins are rejected.
-#define VERTEX_GRAMMAR_PLUGIN_ABI_VERSION 4
+#define VERTEX_GRAMMAR_PLUGIN_ABI_VERSION 5
 
 VERTEX_DECLARE_PLUGIN_KIND(Grammar, grammar, "grammar", VERTEX_GRAMMAR_PLUGIN_ABI_VERSION)
 

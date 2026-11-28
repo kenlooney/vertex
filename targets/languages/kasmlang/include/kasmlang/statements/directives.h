@@ -1,5 +1,5 @@
 #pragma once
-
+#include <string>
 #include "kasmlang/statements/named.h"
 
 class DirectiveStatement : public NamedStatement

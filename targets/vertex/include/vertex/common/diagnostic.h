@@ -17,12 +17,14 @@
 #pragma once
 #include <string>
 #include "span.h"
+#include "source.h"
 class Diagnostic {
 public:
     virtual ~Diagnostic() = default;
     Diagnostic(std::string filename, std::string message, Span span)
         : filename_(std::move(filename)), message_(std::move(message)), span_(std::move(span)) {}
     virtual void report() = 0;
+    virtual void report(const Source &source) = 0;
     Diagnostic(const Diagnostic&) = delete;
     Diagnostic& operator=(const Diagnostic&) = delete;
     std::string filename() const { return filename_; }

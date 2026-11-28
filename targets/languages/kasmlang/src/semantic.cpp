@@ -9,6 +9,9 @@ bool KasmSemanticAnalyzer::analyze(
 {
     error.clear();
     format_.clear();
+    error_filename_.clear();
+    error_span_ = {};
+
     bool has_format_been_set = false;
 
     for (const auto &stmt : statements)
@@ -35,6 +38,8 @@ bool KasmSemanticAnalyzer::analyze(
                     std::uint8_t value;
                     if (!parse_byte(operand.front().text, value))
                     {
+                        error_filename_ = dirStmt->filename();
+                        error_span_ = operand.front().span;
                         error = "The 'db' directive contains an invalid byte value: " + operand.front().text;
                         return false;
                     }

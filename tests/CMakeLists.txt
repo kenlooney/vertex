@@ -69,3 +69,8 @@ add_test(NAME osasm_include_test COMMAND ${CMAKE_COMMAND}
   "-DSOURCE=${EXAMPLES_DIR}/include.asm"
   "-DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/include_$<CONFIG>.bin"
   -P "${CMAKE_CURRENT_SOURCE_DIR}/osasm_include_test.cmake")
+
+add_executable(osasm_include_filename_test osasm_include_filename_test.cpp)
+target_link_libraries(osasm_include_filename_test PRIVATE kasmlang)
+add_test(NAME osasm_include_filename_test COMMAND osasm_include_filename_test
+  "${EXAMPLES_DIR}/include.asm" "${EXAMPLES_DIR}/lib/startup.inc")

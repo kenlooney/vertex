@@ -28,6 +28,7 @@ struct Symbol
     SymbolType type;
     std::string name;
     std::size_t offset;
+    std::string filename;
 };
 
 class SymbolTable

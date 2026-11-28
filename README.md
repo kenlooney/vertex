@@ -119,6 +119,20 @@ prints them in verbose mode.
 ctest --test-dir build/windows-debug -C Debug -V -R '^osasm_include_test$'
 ```
 
+#### Source locations and diagnostics
+
+Labels, instructions, and directives retain their original filenames through
+include expansion. Label symbols also record their defining filename alongside
+their output byte offset. The `osasm_include_filename_test` prints and verifies
+the filename attached to the included directive.
+
+An out-of-range `db` operand reports its original file, line, and column.
+For example, `db 256` on line 2 of `location.inc` points to
+`location.inc:2:4`, the start of `256`.
+
+To resume chapter 38, carry those locations through parser errors and
+deferred jump fixup errors.
+
 ## x86 jumps and fixups
 
 A label records the current output byte offset and emits zero bytes. It can
@@ -383,7 +397,7 @@ class, a registration macro, and a loader.
 | --- | --- | --- | --- | ---: |
 | CPU | `Cpu` | `VERTEX_REGISTER_CPU` | `CpuLoader` | 7 |
 | Language | `Language` | `VERTEX_REGISTER_LANGUAGE` | `LanguageLoader` | 1 |
-| Grammar | `Grammar` | `VERTEX_REGISTER_GRAMMAR` | `GrammarLoader` | 4 |
+| Grammar | `Grammar` | `VERTEX_REGISTER_GRAMMAR` | `GrammarLoader` | 5 |
 
 For example, a CPU plugin implements its register file, declares its default data
 endianness, and implements `reset()`:
@@ -428,6 +442,9 @@ the input bytes, a byte offset, and a string for the decoded instruction.
 CPU ABI **7** adds `FarOperand` to the shared encoder operand type. Rebuild
 older CPU plugins against the current headers. The loader rejects plugins with
 a mismatched ABI version.
+
+Grammar ABI **5** adds diagnostic location storage to `Grammar`. Rebuild
+grammar plugins against the current headers.
 
 ## Repository layout
 

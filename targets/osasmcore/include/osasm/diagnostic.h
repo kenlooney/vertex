@@ -14,14 +14,23 @@
  * GNU General Public License for more details.
  */
 #pragma once
+#include "vertex/common/source.h"
 #include "vertex/common/diagnostic.h"
 #include <iostream>
 
-class OsasmDiagnostic : public Diagnostic {
+class OsasmDiagnostic : public Diagnostic
+{
 public:
     using Diagnostic::Diagnostic;
-    void report() override {
+    void report() override
+    {
         // Custom reporting logic for OsasmDiagnostic
         std::cerr << "Error:" << filename() << ":" << span().begin << ":" << span().end << ": " << message() << std::endl;
+    }
+    void report(const Source &source) override
+    {
+        const auto [line, column] = source.line_column(span().begin);
+        std::cerr << "Error:" << filename() << ':' << line << ':' << column
+                  << ": " << message() << '\n';
     }
 };

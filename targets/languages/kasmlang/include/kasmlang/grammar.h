@@ -37,6 +37,11 @@ public:
 
         for (auto &statement : statements)
         {
+            if (auto *named = dynamic_cast<NamedStatement *>(statement.get()))
+            {
+                named->set_filename(lexer()->source().path);
+            }
+
             const auto *directive = dynamic_cast<const DirectiveStatement *>(statement.get());
 
             if (!directive || directive->name() != "include")
@@ -75,6 +80,10 @@ public:
 
             for (auto &included_statement : included_statements)
             {
+                if (auto *included_directive = dynamic_cast<NamedStatement *>(included_statement.get()))
+                {
+                    included_directive->set_filename(path);
+                }
                 expanded_statements.push_back(std::move(included_statement));
             }
         }
@@ -86,10 +95,12 @@ public:
         const std::vector<std::unique_ptr<Statement>> &statements,
         std::string &error) override
     {
+        set_error_location("", {});
         set_format("");
         KasmSemanticAnalyzer analyzer;
         if (!analyzer.analyze(statements, error))
         {
+            set_error_location(analyzer.error_filename(), analyzer.error_span());
             return false;
         }
         set_format(analyzer.format());
@@ -135,7 +146,7 @@ private:
         {
             if (const auto *label = dynamic_cast<const LabelStatement *>(statement.get()))
             {
-                if (!symbols.addSymbol({SymbolType::Label, label->name(), bytes.size()}))
+                if (!symbols.addSymbol({SymbolType::Label, label->name(), bytes.size(), label->filename()}))
                 {
                     error = "Duplicate label: " + label->name();
                     return false;
